@@ -1,0 +1,37 @@
+name: LEMON PROFIT Python Auto
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lemon_profit_cloud.py"
+      - "requirements.txt"
+      - ".github/workflows/lemon-profit.yml"
+  schedule:
+    # 新加坡/北京时间每天 09:05
+    - cron: "5 1 * * *"
+
+jobs:
+  calculate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Self test
+        run: python lemon_profit_cloud.py --self-test
+      - name: Google Sheet calculation and validation
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            python lemon_profit_cloud.py --google
+          else
+            echo "Google 授权尚未接通：Python 云端自检已通过，本次不写 Google Sheet。"
+          fi
