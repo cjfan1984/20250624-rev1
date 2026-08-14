@@ -6,32 +6,44 @@ on:
     branches: [main]
     paths:
       - "lemon_profit_cloud.py"
+      - "tests/**"
       - "requirements.txt"
       - ".github/workflows/lemon-profit.yml"
   schedule:
-    # 新加坡/北京时间每天 09:05
-    - cron: "5 1 * * *"
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lemon-profit-python
+  cancel-in-progress: false
 
 jobs:
   calculate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      LEMON_SHEET_ID: 1y4UIifDu1WaRQSLPxMFdBhsXwrfCyt_Kmu555q4mea0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install
+          cache: pip
+      - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Self test
-        run: python lemon_profit_cloud.py --self-test
-      - name: Google Sheet calculation and validation
+      - name: Run engine and security tests
+        run: |
+          python lemon_profit_cloud.py --self-test
+          python -m unittest discover -s tests -v
+      - name: Run Google Sheet audit
+        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' }}
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        shell: bash
+        run: python lemon_profit_cloud.py --google
+      - name: Report pending Google authorization
+        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON == '' }}
         run: |
-          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
-            python lemon_profit_cloud.py --google
-          else
-            echo "Google 授权尚未接通：Python 云端自检已通过，本次不写 Google Sheet。"
-          fi
+          echo "::warning::Python V0.2 tests passed, but Google service-account authorization is not connected."
+          echo "Google直连尚未接通；当前不会写入Google Sheet。"

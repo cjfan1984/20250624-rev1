@@ -1,13 +1,28 @@
-# LEMON PROFIT Python Cloud
+# LEMON PROFIT Python Cloud V0.2
 
-LEMON PROFIT 的云端 Python 自动化运行仓库。
+LEMON PROFIT 的配置驱动利润核验程序。手机和电脑都不需要安装 Python。
 
-- Google Sheet：经营控制台
-- `10_Python设置`：可见、可编辑的公式配置
-- `lemon_profit_cloud.py`：Python 计算与校验内核
-- `PY_利润校验`：Python 与现有表格公式的并行校验结果
-- GitHub Actions：云端定时运行
+## 直接使用
 
-安全原则：未知成本不按 0；佣金只扣一次；第一阶段只校验，不覆盖现有 06/07 主公式。
+- 工作副本：[LEMON PROFIT Python自动化 V0.1](https://docs.google.com/spreadsheets/d/1y4UIifDu1WaRQSLPxMFdBhsXwrfCyt_Kmu555q4mea0/edit)
+- 正式原表默认受保护，不被 Python 覆盖。
+- 修改 `06_跨境SKU核价` 或 `07_本土SKU核价` 的输入后，查看 `PY_测试结果`。
+- 字段开关、必填、数据类型在 `PY_字段配置` 修改。
+- 计算逻辑在 `PY_公式配置` 修改，字段用 `[字段名称]` 引用。
+- `PY_系统设置` 默认是 `audit`，只核验，不覆盖 06/07 既有公式。
 
-当前 Google Sheet ID 已绑定到程序默认值；真正写入 Google Sheet 需要仓库 Secret：`GOOGLE_SERVICE_ACCOUNT_JSON`。
+## V0.2 做了什么
+
+- Python 按字段名称定位，不依赖 A/B/C 固定列号。
+- 新增、删除或移动字段后，只要同步修改配置即可。
+- 公式从 Google Sheet 读取，不写死在程序里。
+- 支持 `IF`、`ROUNDUP10`、四则运算、比较和安全白名单函数。
+- 空白成本保持空白并标记“待补充”，不会按 0。
+- 每次运行写入 `PY_测试结果` 并追加 `PY_运行日志`。
+- `apply` 写回有双开关和原表保护，默认关闭。
+
+## 云端运行状态
+
+GitHub Actions 每小时自检一次。Google 直连需要仓库 Secret `GOOGLE_SERVICE_ACCOUNT_JSON`，并将工作副本共享给该服务账号。Secret 未配置时，工作流会明确显示“Google直连尚未接通”，不会伪装成已经写表。
+
+服务账号 JSON 只能放在 GitHub Actions Secret 中，禁止提交到仓库或粘贴到公开文件。
