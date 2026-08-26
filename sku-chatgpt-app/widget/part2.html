@@ -1,0 +1,92 @@
+rt="profit" class="active">按单件利润</button>
+      <button type="button" data-sort="month">按月利润</button>
+    </div>
+  </div>
+  <div id="main"><div class="loading">等待 ChatGPT 传入SKU数据…</div></div>
+</div>
+
+<script>
+const state = { rows: [], sort: "profit", selected: null };
+
+const isN = (v) => typeof v === "number" && Number.isFinite(v);
+const money = (v) => isN(v) ? (v < 0 ? "-¥" : "¥") + Math.abs(v).toFixed(2) : "待补";
+const rub = (v) => isN(v) ? "₽" + Math.round(v).toLocaleString("zh-CN") : "待补";
+const pct = (v) => isN(v) ? v.toFixed(1) + "%" : "待补";
+const rng = (a) => Array.isArray(a) ? (a[0] === a[1] ? String(a[0]) : `${a[0]}–${a[1]}`) : "待补";
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+
+function monthProfit(r){
+  if (Array.isArray(r.monthProfit) && isN(r.monthProfit[1])) return r.monthProfit[1];
+  return null;
+}
+
+function sortedRows(){
+  const rows = [...state.rows];
+  if (state.sort === "margin") rows.sort((a,b)=>(b.margin??-1e9)-(a.margin??-1e9));
+  else if (state.sort === "month") rows.sort((a,b)=>(monthProfit(b)??-1e9)-(monthProfit(a)??-1e9));
+  else rows.sort((a,b)=>(b.profit??-1e9)-(a.profit??-1e9));
+  return rows;
+}
+
+function status(r){
+  if (r.profit < 0) return ["负利润","bad"];
+  if (r.margin >= 20) return ["达到20%目标","good"];
+  if (r.margin >= 15) return ["15–20%","warn"];
+  return ["低于15%","bad"];
+}
+
+function setWidgetState(){
+  try{
+    window.openai?.setWidgetState?.({
+      selectedSku: state.selected,
+      sort: state.sort
+    });
+  }catch{}
+}
+
+function restoreWidgetState(){
+  try{
+    const s = window.openai?.widgetState;
+    if (s?.selectedSku) state.selected = s.selectedSku;
+    if (["margin","profit","month"].includes(s?.sort)) state.sort = s.sort;
+  }catch{}
+}
+
+function render(){
+  if (!state.rows.length) return;
+  const rows = sortedRows();
+  if (!state.selected || !rows.some(r=>r.sku===state.selected)) state.selected = rows[0].sku;
+
+  const select = document.getElementById("skuSelect");
+  select.innerHTML = rows.map((r,i)=>`<option value="${esc(r.sku)}">${String(i+1).padStart(2,"0")}｜${esc(r.sku)}｜${pct(r.margin)}</option>`).join("");
+  select.value = state.selected;
+
+  document.querySelectorAll("[data-sort]").forEach(b=>b.classList.toggle("active",b.dataset.sort===state.sort));
+
+  const r = rows.find(x=>x.sku===state.selected) || rows[0];
+  const [label,klass] = status(r);
+  const pcls = r.profit >= 0 ? "pos" : "neg";
+  const mcls = r.margin >= 15 ? "pos" : "neg";
+
+  document.getElementById("main").innerHTML = `
+    <section class="card">
+      <div class="titleline">
+        <div>
+          <h2>${esc(r.sku)}</h2>
+          <div class="family">${esc(r.family)}｜${esc(r.action)}</div>
+        </div>
+        <span class="badge ${klass}">${label}</span>
+      </div>
+
+      <div class="grid">
+        <div class="metric"><small>Ozon售价</small><strong>${rub(r.price)}</strong></div>
+        <div class="metric"><small>15%目标成本上限</small><strong>${money(r.targetCost)}</strong></div>
+        <div class="metric"><small>实际/核价成本</small><strong>${money(r.cost)}</strong></div>
+        <div class="metric"><small>平台费用</small><strong>${money(r.fee)}</strong></div>
+        <div class="metric"><small>跨境运费</small><strong>${money(r.freight)}</strong><div class="sub">CEL ${r.cel} RUB</div></div>
+        <div class="metric"><small>单件净利润</small><strong class="${pcls}">${money(r.profit)}</strong></div>
+        <div class="metric"><small>净利率</small><strong class="${mcls}">${pct(r.margin)}</strong></div>
+        <div class="metric"><small>Ozon 28天市场销量</small><strong>${Number(r.ozonUnits||0).toLocaleString("zh-CN")}</strong></div>
+        <div class="metric"><small>WB需求证据</small><strong>${Number(r.wbOrders||0).toLocaleString("zh-CN")}</strong></div>
+        <div class="metric"><small>预计月总单量</small><strong>${rng(r.totalForecast)}单</strong></div>
+        
