@@ -1,0 +1,68 @@
+name: SKU ChatGPT App Test
+on:
+  push:
+    branches: [sku-chatgpt-app-test]
+  workflow_dispatch:
+
+jobs:
+  test-and-tunnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: sku-chatgpt-app
+        run: npm install --no-audit --no-fund
+      - name: Static check
+        working-directory: sku-chatgpt-app
+        run: npm run check
+      - name: Start MCP server
+        working-directory: sku-chatgpt-app
+        run: |
+          nohup npm start > mcp.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/ > health.json; then break; fi
+            sleep 1
+          done
+          cat health.json
+          grep -q '"skuCount":31' health.json
+      - name: Validate MCP initialize
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8787/mcp \
+            -H 'content-type: application/json' \
+            -H 'accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"github-actions","version":"1.0"}}}' | tee init.json
+          grep -q 'jsonrpc' init.json
+      - name: Start HTTPS quick tunnel
+        run: |
+          curl -fsSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared
+          nohup ./cloudflared tunnel --url http://127.0.0.1:8787 --no-autoupdate > cloudflared.log 2>&1 &
+          for i in {1..90}; do
+            URL=$(grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' cloudflared.log | head -1 || true)
+            if [ -n "$URL" ]; then break; fi
+            sleep 1
+          done
+          if [ -z "$URL" ]; then cat cloudflared.log; exit 1; fi
+          echo "$URL" | tee mcp-base-url.txt
+          echo "$URL/mcp" | tee mcp-url.txt
+          echo "### Temporary ChatGPT MCP URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$URL/mcp\`" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS "$URL/" | tee public-health.json
+          grep -q '"skuCount":31' public-health.json
+      - name: Upload MCP URL
+        uses: actions/upload-artifact@v4
+        with:
+          name: sku-mcp-url
+          path: |
+            mcp-url.txt
+            mcp-base-url.txt
+            public-health.json
+            sku-chatgpt-app/mcp.log
+            cloudflared.log
+          retention-days: 1
+      - name: Keep tunnel alive for ChatGPT validation
+        run: sleep 1200
