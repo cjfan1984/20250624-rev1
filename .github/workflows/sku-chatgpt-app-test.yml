@@ -51,8 +51,19 @@ jobs:
           echo "$URL/mcp" | tee mcp-url.txt
           echo "### Temporary ChatGPT MCP URL" >> "$GITHUB_STEP_SUMMARY"
           echo "\`$URL/mcp\`" >> "$GITHUB_STEP_SUMMARY"
-          curl -fsS "$URL/" | tee public-health.json
-          grep -q '"skuCount":31' public-health.json
+          READY=0
+          for i in {1..90}; do
+            if curl -fsS --connect-timeout 5 "$URL/" > public-health.json 2>public-curl.err; then
+              if grep -q '"skuCount":31' public-health.json; then READY=1; break; fi
+            fi
+            sleep 2
+          done
+          if [ "$READY" != "1" ]; then
+            cat public-curl.err || true
+            cat cloudflared.log || true
+            exit 1
+          fi
+          cat public-health.json
       - name: Upload MCP URL
         uses: actions/upload-artifact@v4
         with:
