@@ -18,7 +18,9 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Static check
         working-directory: sku-chatgpt-app
-        run: npm run check
+        run: |
+          npm run check
+          node --check verify.mjs
       - name: Start MCP server
         working-directory: sku-chatgpt-app
         run: |
@@ -29,13 +31,9 @@ jobs:
           done
           cat health.json
           grep -q '"skuCount":31' health.json
-      - name: Validate MCP initialize
-        run: |
-          curl -fsS -X POST http://127.0.0.1:8787/mcp \
-            -H 'content-type: application/json' \
-            -H 'accept: application/json, text/event-stream' \
-            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"github-actions","version":"1.0"}}}' | tee init.json
-          grep -q 'jsonrpc' init.json
+      - name: Protocol-level MCP and widget verification
+        working-directory: sku-chatgpt-app
+        run: node verify.mjs | tee verify-result.json
       - name: Start HTTPS quick tunnel
         run: |
           curl -fsSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
@@ -64,7 +62,10 @@ jobs:
             exit 1
           fi
           cat public-health.json
-      - name: Upload MCP URL
+      - name: Verify public MCP endpoint through Apps SDK client
+        working-directory: sku-chatgpt-app
+        run: MCP_URL="$(cat ../mcp-url.txt)" node verify.mjs | tee ../public-verify-result.json
+      - name: Upload MCP validation evidence
         uses: actions/upload-artifact@v4
         with:
           name: sku-mcp-url
@@ -72,6 +73,8 @@ jobs:
             mcp-url.txt
             mcp-base-url.txt
             public-health.json
+            public-verify-result.json
+            sku-chatgpt-app/verify-result.json
             sku-chatgpt-app/mcp.log
             cloudflared.log
           retention-days: 1
