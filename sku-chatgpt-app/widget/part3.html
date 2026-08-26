@@ -1,0 +1,73 @@
+<div class="metric"><small>预计月总单量</small><strong>${rng(r.totalForecast)}单</strong></div>
+      </div>
+
+      <div class="spec"><b>产品规格：</b>${esc(r.spec)}</div>
+      <div class="action"><b>当前动作：</b>${esc(r.action)}<br><b>状态：</b>${esc(r.status)}</div>
+
+      <div class="links">
+        <a href="${esc(r.links?.["1688"]||"#")}" target="_blank" rel="noopener">1688货源</a>
+        <a href="${esc(r.links?.taobao||"#")}" target="_blank" rel="noopener">淘宝货源</a>
+        <a href="${esc(r.links?.pdd||"#")}" target="_blank" rel="noopener">拼多多货源</a>
+        <a href="${esc(r.links?.wb||"#")}" target="_blank" rel="noopener">WB竞品</a>
+        <a href="${esc(r.links?.ozon||"#")}" target="_blank" rel="noopener">Ozon竞品</a>
+      </div>
+    </section>
+
+    <div class="rank">
+      <table>
+        <thead><tr><th>排名</th><th>SKU</th><th>售价</th><th>成本</th><th>利润</th><th>净利率</th><th>月单量</th></tr></thead>
+        <tbody>${rows.map((x,i)=>`
+          <tr data-sku="${esc(x.sku)}">
+            <td>${i+1}</td><td>${esc(x.sku)}</td><td>${rub(x.price)}</td><td>${money(x.cost)}</td>
+            <td class="${x.profit>=0?"pos":"neg"}">${money(x.profit)}</td>
+            <td class="${x.margin>=15?"pos":"neg"}">${pct(x.margin)}</td><td>${rng(x.totalForecast)}</td>
+          </tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+
+  document.querySelectorAll("tr[data-sku]").forEach(tr=>{
+    tr.addEventListener("click",()=>{
+      state.selected=tr.dataset.sku;
+      setWidgetState();
+      render();
+      window.scrollTo({top:0,behavior:"smooth"});
+    });
+  });
+}
+
+function loadStructuredContent(sc){
+  if (!sc || !Array.isArray(sc.skus)) return;
+  state.rows = sc.skus;
+  restoreWidgetState();
+  render();
+}
+
+document.getElementById("skuSelect").addEventListener("change",(e)=>{
+  state.selected=e.target.value;
+  setWidgetState();
+  render();
+});
+
+document.querySelectorAll("[data-sort]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    state.sort=btn.dataset.sort;
+    setWidgetState();
+    render();
+  });
+});
+
+window.addEventListener("message",(event)=>{
+  if (event.source !== window.parent) return;
+  const message = event.data;
+  if (!message || message.jsonrpc !== "2.0") return;
+  if (message.method === "ui/notifications/tool-result"){
+    loadStructuredContent(message.params?.structuredContent);
+  }
+},{passive:true});
+
+if (window.openai?.toolOutput) {
+  loadStructuredContent(window.openai.toolOutput);
+}
+</script>
+</body>
+</html>
