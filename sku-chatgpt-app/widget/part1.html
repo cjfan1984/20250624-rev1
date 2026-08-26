@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>
+:root{
+  --bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e5e7eb;
+  --good:#067647;--goodbg:#dcfce7;--warn:#b45309;--warnbg:#fff7ed;
+  --bad:#b91c1c;--badbg:#fee2e2;--blue:#2563eb;--navy:#13233f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--text)}
+.wrap{padding:12px}
+.hero{background:linear-gradient(135deg,#13233f,#203c67);color:#fff;border-radius:18px;padding:16px}
+.hero h1{margin:0 0 6px;font-size:20px}
+.hero p{margin:0;color:#dbeafe;font-size:12px;line-height:1.55}
+.controls{margin:12px 0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+select,input{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:14px}
+.sorts{display:flex;gap:6px;flex-wrap:wrap}
+.sorts button{border:1px solid var(--line);background:#fff;padding:9px 10px;border-radius:11px;font-size:12px}
+.sorts button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px;box-shadow:0 8px 24px rgba(15,23,42,.05)}
+.titleline{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+h2{margin:0;font-size:20px;line-height:1.35}.family{margin-top:4px;font-size:12px;color:var(--muted)}
+.badge{font-size:11px;font-weight:800;padding:6px 9px;border-radius:999px;white-space:nowrap}
+.good{background:var(--goodbg);color:var(--good)}.warn{background:var(--warnbg);color:var(--warn)}.bad{background:var(--badbg);color:var(--bad)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px}
+.metric{border:1px solid var(--line);border-radius:13px;padding:10px;background:#fafafa;min-width:0}
+.metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}
+.metric strong{font-size:16px;overflow-wrap:anywhere}.metric .sub{font-size:10px;color:var(--muted);margin-top:3px}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+.spec,.action{margin-top:11px;padding:11px;border-radius:12px;font-size:12px;line-height:1.6}
+.spec{background:#f8fafc}.action{background:#eff6ff;border:1px solid #bfdbfe}
+.links{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:11px}
+.links a{color:#1e3a5f;background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:9px 6px;text-align:center;text-decoration:none;font-size:12px;font-weight:700}
+.links a:last-child{grid-column:1/-1}
+.rank{margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:auto}
+.rank table{width:100%;border-collapse:collapse;min-width:720px}
+.rank th,.rank td{font-size:11px;text-align:left;padding:8px;border-bottom:1px solid #eef2f7}
+.rank th{color:#64748b;background:#f8fafc}
+.rank tbody tr{cursor:pointer}
+.loading{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;color:var(--muted);text-align:center}
+@media(min-width:720px){
+  .grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .links{grid-template-columns:repeat(5,1fr)}
+  .links a:last-child{grid-column:auto}
+}
+@media(max-width:620px){
+  .controls{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>31 SKU 选品决策卡</h1>
+    <p>原版交互逻辑：下拉选择 → 单项决策卡 → 排名清单。利润、市场证据、成本红线、预测销量和货源链接保持分开。</p>
+  </div>
+  <div class="controls">
+    <div>
+      <select id="skuSelect" aria-label="选择SKU"><option>正在载入…</option></select>
+    </div>
+    <div class="sorts">
+      <button type="button" data-sort="margin">按净利率</button>
+      <button type="button" data-so
