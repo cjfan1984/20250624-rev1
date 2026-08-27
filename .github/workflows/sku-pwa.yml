@@ -88,20 +88,22 @@ jobs:
           PWA_URL: http://127.0.0.1:4173/
         run: node tests-pwa/pwa-browser.mjs | tee pwa-local-qa.json
 
-      - name: Publish verified build to sku-pwa-public branch
+      - name: Publish verified build to clean sku-pwa-public branch
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/sku-pwa-public
-          mkdir -p /tmp/sku-pwa-public
-          cp -a sku-pwa/. /tmp/sku-pwa-public/
+          rm -rf /tmp/sku-pwa-public-build /tmp/sku-pwa-public-worktree
+          mkdir -p /tmp/sku-pwa-public-build
+          cp -a sku-pwa/. /tmp/sku-pwa-public-build/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan sku-pwa-public-work
-          git rm -rf .
-          cp -a /tmp/sku-pwa-public/. .
+          git fetch origin sku-pwa-public:refs/remotes/origin/sku-pwa-public
+          git worktree add -B sku-pwa-public-publish /tmp/sku-pwa-public-worktree origin/sku-pwa-public
+          find /tmp/sku-pwa-public-worktree -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/sku-pwa-public-build/. /tmp/sku-pwa-public-worktree/
+          cd /tmp/sku-pwa-public-worktree
           git add -A
-          git commit -m "Publish verified 31-SKU PWA"
+          git commit -m "Publish verified 31-SKU PWA" || true
           git push --force origin HEAD:refs/heads/sku-pwa-public
 
       - name: Verify public CDN PWA with real browser
