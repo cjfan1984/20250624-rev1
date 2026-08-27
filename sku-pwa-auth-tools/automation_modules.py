@@ -7,32 +7,43 @@ from difflib import SequenceMatcher
 from typing import Any
 from urllib.parse import urlparse
 
+# Canonical 25-module roadmap shown in the PWA automation center.
+# Core phase uses six business bundles, while the registry keeps all 25 capabilities visible.
 MODULE_REGISTRY = [
-    {"id":"dynamic_ingest","name":"动态SKU入库","phase":1,"status":"active"},
-    {"id":"gap_radar","name":"数据缺口雷达","phase":1,"status":"active"},
-    {"id":"auto_queue","name":"自动补数队列","phase":1,"status":"active"},
-    {"id":"profit_gate","name":"利润/极限判死","phase":1,"status":"active"},
-    {"id":"source_competitor","name":"供应商/竞品自动维护","phase":1,"status":"active"},
-    {"id":"incremental_sync","name":"增量PWA同步","phase":1,"status":"active"},
-    {"id":"data_quality","name":"数据质量审计","phase":2,"status":"queued"},
-    {"id":"change_log","name":"SKU变更日志","phase":2,"status":"queued"},
-    {"id":"price_sensitivity","name":"价格敏感性模拟","phase":2,"status":"queued"},
-    {"id":"purchase_cap","name":"采购价反推","phase":2,"status":"queued"},
-    {"id":"moq_cash","name":"MOQ资金占用","phase":2,"status":"queued"},
-    {"id":"inventory_risk","name":"库存/现金流风险","phase":2,"status":"queued"},
-    {"id":"sales_trend","name":"销量趋势/爆品预警","phase":3,"status":"queued"},
-    {"id":"rank_change","name":"排名变化检测","phase":3,"status":"queued"},
-    {"id":"anomaly_detection","name":"异常检测","phase":3,"status":"queued"},
-    {"id":"similar_cluster","name":"相似SKU聚类","phase":3,"status":"queued"},
-    {"id":"spec_matrix","name":"规格矩阵机会发现","phase":3,"status":"queued"},
-    {"id":"supply_reuse","name":"供应链复用分析","phase":3,"status":"queued"},
-    {"id":"review_pain","name":"评论痛点统计","phase":4,"status":"queued"},
-    {"id":"qc_generator","name":"QC自动生成","phase":4,"status":"queued"},
-    {"id":"next_action","name":"下一步动作引擎","phase":2,"status":"queued"},
-    {"id":"local_cross_route","name":"本土/跨境双路线决策","phase":2,"status":"queued"},
-    {"id":"image_maintenance","name":"图片自动获取/整理","phase":3,"status":"queued"},
-    {"id":"supplier_compare","name":"供应商比价深化","phase":3,"status":"queued"},
-    {"id":"lifecycle_state","name":"事件驱动生命周期状态机","phase":4,"status":"queued"},
+    {"id":"dynamic_ingest","name":"动态SKU入库引擎","number":1,"phase":1,"status":"active","bundle":1},
+    {"id":"gap_radar","name":"数据缺口雷达","number":2,"phase":1,"status":"active","bundle":2},
+    {"id":"auto_queue","name":"自动补数队列","number":3,"phase":1,"status":"active","bundle":3},
+    {"id":"profit_recalc","name":"利润实时重算","number":4,"phase":1,"status":"active","bundle":4},
+    {"id":"structural_stop","name":"极限利润判死引擎","number":5,"phase":1,"status":"active","bundle":4},
+    {"id":"supplier_compare","name":"供应商比价引擎","number":6,"phase":1,"status":"active","bundle":5},
+    {"id":"competitor_refresh","name":"竞品自动换新","number":7,"phase":1,"status":"active","bundle":5},
+    {"id":"image_maintenance","name":"图片自动获取/整理","number":8,"phase":1,"status":"active","bundle":5},
+    {"id":"data_quality","name":"数据质量审计","number":9,"phase":2,"status":"queued"},
+    {"id":"change_log","name":"SKU变更日志","number":10,"phase":2,"status":"queued"},
+    {"id":"incremental_sync","name":"自动版本/增量同步","number":11,"phase":1,"status":"active","bundle":6},
+    {"id":"local_cross_route","name":"本土/跨境双路线决策","number":12,"phase":2,"status":"queued"},
+    {"id":"price_sensitivity","name":"价格敏感性模拟器","number":13,"phase":2,"status":"queued"},
+    {"id":"purchase_cap","name":"采购价反推器","number":14,"phase":2,"status":"queued"},
+    {"id":"moq_cash","name":"MOQ资金占用模型","number":15,"phase":2,"status":"queued"},
+    {"id":"inventory_risk","name":"库存/现金流风险评分","number":16,"phase":2,"status":"queued"},
+    {"id":"sales_trend","name":"销量趋势/爆品预警","number":17,"phase":3,"status":"queued"},
+    {"id":"rank_change","name":"排名变化检测","number":18,"phase":3,"status":"queued"},
+    {"id":"anomaly_detection","name":"异常检测","number":19,"phase":3,"status":"queued"},
+    {"id":"similar_cluster","name":"相似SKU聚类","number":20,"phase":3,"status":"queued"},
+    {"id":"spec_matrix","name":"规格矩阵机会发现","number":21,"phase":3,"status":"queued"},
+    {"id":"supply_reuse","name":"供应链复用分析","number":22,"phase":3,"status":"queued"},
+    {"id":"review_pain","name":"评论痛点统计","number":23,"phase":4,"status":"queued"},
+    {"id":"qc_generator","name":"QC自动生成器","number":24,"phase":4,"status":"queued"},
+    {"id":"next_action","name":"自动任务生成器","number":25,"phase":2,"status":"queued"},
+]
+
+CORE_BUNDLES = [
+    {"bundle":1,"name":"动态SKU入库","modules":[1]},
+    {"bundle":2,"name":"缺口雷达","modules":[2]},
+    {"bundle":3,"name":"自动补数队列","modules":[3]},
+    {"bundle":4,"name":"利润/极限判死","modules":[4,5]},
+    {"bundle":5,"name":"供应商/竞品自动维护","modules":[6,7,8]},
+    {"bundle":6,"name":"增量PWA同步","modules":[11]},
 ]
 
 DEFAULT_PARAMS = {
@@ -235,7 +246,8 @@ def enrich_automation(source: dict[str, Any], params: dict[str,float] | None=Non
     sourcing=source_competitor_state(source)
     ingest=ingestion_state(source)
     return {
-        "modulesVersion":"AUTOMATION-P1-V1",
+        "modulesVersion":"AUTOMATION-P1-V2",
+        "coreBundles":CORE_BUNDLES,
         "ingestion":ingest,
         "gaps":gaps,
         "queue":queue,
