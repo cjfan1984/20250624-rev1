@@ -3,6 +3,7 @@ t=`${i+1}｜${d.sku}｜${pct(d.margin)}`;s.appendChild(o)});
  s.onchange=()=>renderDetail(Number(s.value));
 }
 
+const DASHBOARD_VERSION_DATE='2026-08-27';
 function isStandaloneMode(){return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;}
 async function copyExternalText(text){
  try{await navigator.clipboard.writeText(text);return true;}catch(e){
@@ -30,45 +31,81 @@ function openPlatformLink(event,platform,url,sku){
  box.append(title,msg,tryBtn,copyBtn,keyBtn,closeBtn);overlay.appendChild(box);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});document.body.appendChild(overlay);
  return false;
 }
+function linkStatus(url){
+ return /\/search\/|search\.aspx|search_result/i.test(url||'')?'搜索结果｜待核精确商品':'精确商品页';
+}
+function dataQuality(d){
+ if(d.ozonUnits>0 && d.wbOrders>0 && d.cost>0 && d.weight>0)return 'B';
+ return 'C';
+}
+function targetCostDisplay(d){return d.targetCost<0?'跨境模型不成立':money(d.targetCost);}
+function ozonMonthProfit(d){return [d.profit*d.ozForecast[0],d.profit*d.ozForecast[1]];}
+function upgradeLabels(){
+ const th=document.querySelectorAll('.ranking th');
+ if(th[8])th[8].textContent='Ozon月利润情景';
+ const btn=document.querySelectorAll('.toggle button');
+ if(btn[2])btn[2].textContent='按Ozon月利润';
+ const hp=document.querySelector('.hero p');
+ if(hp)hp.textContent='总览 → 排名 → SKU选择 → 单项决策卡。利润只展示当前已成立的Ozon跨境模型；WB利润、包装体积、精确竞品等未闭环字段明确标注待补，不再用代理值冒充。';
+}
 function renderDetail(id){
  const d=data.find(x=>x.rank===id)||sorted[0]; const [bt,bc]=badge(d);
- const monthlyMid=(d.monthProfit[0]+d.monthProfit[1])/2;
+ const ozMonth=ozonMonthProfit(d);
+ const quality=dataQuality(d);
+ const targetInvalid=d.targetCost<0;
+ const wbDemand=d.wbOrders?d.wbOrders.toLocaleString():'待补';
+ const ozLinkState=linkStatus(d.links.ozon), wbLinkState=linkStatus(d.links.wb);
+ const specState=(d.spec||'').includes('待核')?'存在待核规格':'主要规格已记录';
  document.getElementById('detail').innerHTML=`<div class="card">
  <div class="titleline"><div><h2>${d.sku}</h2><div class="family">${d.family}｜${d.action}</div></div><span class="badge ${bc}">${bt}</span></div>
+ <div style="margin-top:12px;padding:12px 14px;border:1px solid ${quality==='B'?'#bfdbfe':'#fed7aa'};background:${quality==='B'?'#eff6ff':'#fff7ed'};border-radius:14px;font-size:12px;line-height:1.65">
+   <b>数据闭环等级：${quality}</b>　｜　驾驶舱更新：${DASHBOARD_VERSION_DATE}　｜　市场原始采集日：待逐SKU补录<br>
+   A=精确SKU＋双平台真实利润＋包装/采购闭环；B=已有双平台需求证据但仍缺关键成本/竞品字段；C=关键需求或成本证据未闭环。当前没有把估算数据标成A级。
+ </div>
  <div class="grid">
-  <div class="metric"><small>目标售价 / 当前Ozon价</small><strong>${rub(d.price)}</strong><div class="sub">当前用于跨境利润模型</div></div>
-  <div class="metric"><small>目标成本价</small><strong>${money(d.targetCost)}</strong><div class="sub">15%净利率采购上限</div></div>
-  <div class="metric"><small>实际/核价成本</small><strong>${money(d.cost)}</strong><div class="sub">公开价/条件价/情景价，需看核价状态</div></div>
-  <div class="metric"><small>平台费用</small><strong>${money(d.fee)}</strong><div class="sub">按Ozon 21.5%模型</div></div>
-  <div class="metric"><small>跨境运费</small><strong>${money(d.freight)}</strong><div class="sub">CEL：${d.cel.toFixed(2)} RUB</div></div>
-  <div class="metric"><small>单件净利润</small><strong class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</strong><div class="sub">当前跨境模型</div></div>
-  <div class="metric"><small>净利率</small><strong class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</strong><div class="sub">准入线15%</div></div>
-  <div class="metric"><small>预计月总单量</small><strong>${range(d.totalForecast)}单</strong><div class="sub">Ozon ${range(d.ozForecast)} + WB ${range(d.wbForecast)}</div></div>
-  <div class="metric"><small>月利润总额（代理）</small><strong class="${monthlyMid>=0?'pos':'neg'}">${money(d.monthProfit[0])}～${money(d.monthProfit[1])}</strong><div class="sub">暂用Ozon单件利润代理WB</div></div>
-  <div class="metric"><small>毛重</small><strong>${d.weight.toFixed(3)}kg</strong><div class="sub">影响CEL运费</div></div>
-  <div class="metric"><small>Ozon市场28天销量</small><strong>${d.ozonUnits.toLocaleString()}</strong><div class="sub">竞品/产品族证据</div></div>
-  <div class="metric"><small>WB需求证据</small><strong>${d.wbOrders?d.wbOrders.toLocaleString():'待补'}</strong><div class="sub">30天搜索词下单，不等于竞品SKU销量</div></div>
+  <div class="metric"><small>Ozon售价 / 当前模型价</small><strong>${rub(d.price)}</strong><div class="sub">用于当前Ozon跨境利润模型</div></div>
+  <div class="metric"><small>15%净利率采购上限</small><strong class="${targetInvalid?'neg':''}">${targetCostDisplay(d)}</strong><div class="sub">${targetInvalid?'即使采购成本为0，当前跨境模型也达不到15%净利率':'目标成本上限'}</div></div>
+  <div class="metric"><small>实际/核价成本</small><strong>${money(d.cost)}</strong><div class="sub">成本来源仍需拆分：公开价 / 条件价 / 情景价</div></div>
+  <div class="metric"><small>Ozon平台费用</small><strong>${money(d.fee)}</strong><div class="sub">当前按Ozon 21.5%模型</div></div>
+  <div class="metric"><small>CEL跨境运费</small><strong>${money(d.freight)}</strong><div class="sub">CEL计费：${d.cel.toFixed(2)} RUB；包装体积待补</div></div>
+  <div class="metric"><small>Ozon单件净利润</small><strong class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</strong><div class="sub">不再代理WB利润</div></div>
+  <div class="metric"><small>Ozon净利率</small><strong class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</strong><div class="sub">准入线15%</div></div>
+  <div class="metric"><small>Ozon预计月单量</small><strong>${range(d.ozForecast)}单</strong><div class="sub">按现有需求证据形成的情景值</div></div>
+  <div class="metric"><small>Ozon月利润情景</small><strong class="${ozMonth[1]>=0?'pos':'neg'}">${money(ozMonth[0])}～${money(ozMonth[1])}</strong><div class="sub">仅Ozon；未混入WB代理利润</div></div>
+  <div class="metric"><small>双平台需求情景</small><strong>${range(d.totalForecast)}单</strong><div class="sub">Ozon ${range(d.ozForecast)} + WB ${range(d.wbForecast)}；仅需求，不代表双平台利润</div></div>
+  <div class="metric"><small>毛重</small><strong>${d.weight.toFixed(3)}kg</strong><div class="sub">净重：待补</div></div>
+  <div class="metric"><small>包装长×宽×高</small><strong>待补</strong><div class="sub">缺失会影响体积重和跨境运费判断</div></div>
+  <div class="metric"><small>体积重 / 最终计费重</small><strong>待补</strong><div class="sub">需包装尺寸后计算</div></div>
+  <div class="metric"><small>Ozon市场28天销量</small><strong>${d.ozonUnits.toLocaleString()}</strong><div class="sub">当前为竞品/产品族需求证据，不等同精确SKU销量</div></div>
+  <div class="metric"><small>WB搜索词30天下单</small><strong>${wbDemand}</strong><div class="sub">搜索词需求证据，不等于竞品SKU销量</div></div>
+  <div class="metric"><small>WB精确竞品SKU销量</small><strong>待补</strong><div class="sub">需要真实竞品商品级数据</div></div>
+  <div class="metric"><small>WB真实单件利润</small><strong>待补</strong><div class="sub">佣金、物流、广告、退货损耗尚未闭环</div></div>
+  <div class="metric"><small>供应商 / MOQ / 核价日期</small><strong>待补</strong><div class="sub">采购成本必须可追溯</div></div>
+  <div class="metric"><small>规格冻结状态</small><strong>${specState}</strong><div class="sub">未冻结规格不能直接放量</div></div>
+  <div class="metric"><small>竞品链接状态</small><strong>${ozLinkState.includes('待核')||wbLinkState.includes('待核')?'待核精确商品':'已核精确商品'}</strong><div class="sub">Ozon：${ozLinkState}；WB：${wbLinkState}</div></div>
  </div>
  <div class="spec"><b>产品规格：</b>${d.spec}</div>
  <div class="links">
    <a href="${d.links['1688']}" target="_blank" rel="noopener">1688货源</a>
    <a href="${d.links.taobao}" target="_blank" rel="noopener">淘宝货源</a>
    <a href="${d.links.pdd}" target="_blank" rel="noopener">拼多多货源</a>
-   <a href="${d.links.wb}" onclick="return openPlatformLink(event,'WB',this.href,${JSON.stringify(d.sku)})" rel="noopener">WB对标竞品</a>
-   <a href="${d.links.ozon}" onclick="return openPlatformLink(event,'Ozon',this.href,${JSON.stringify(d.sku)})" rel="noopener">Ozon对标竞品</a>
+   <a href="${d.links.wb}" onclick="return openPlatformLink(event,'WB',this.href,${JSON.stringify(d.sku)})" rel="noopener">WB需求/竞品</a>
+   <a href="${d.links.ozon}" onclick="return openPlatformLink(event,'Ozon',this.href,${JSON.stringify(d.sku)})" rel="noopener">Ozon需求/竞品</a>
  </div>
- <div class="note">链接规则：若精确商品页尚未核实，按钮进入该平台的同规格搜索结果，不留空、不冒充精确货源。月利润总额目前为双平台代理估算；WB真实佣金与跨境物流闭环后会替换为正式值。</div>
+ <div class="note"><b>当前结论口径：</b>Ozon利润可用于初筛；WB只保留需求证据，不再用Ozon利润代理WB。包装尺寸、体积重、供应商核价、精确竞品SKU销量和双平台真实费用闭环后，才升级为A级决策数据。</div>
  </div>`;
 }
 function renderTable(){
  const b=document.getElementById('tbody'); b.innerHTML='';
+ const th=document.querySelectorAll('.ranking th');if(th[8])th[8].textContent='Ozon月利润情景';
  sorted.forEach((d,i)=>{const tr=document.createElement('tr');tr.onclick=()=>{document.getElementById('skuSelect').value=d.rank;renderDetail(d.rank);window.scrollTo({top:0,behavior:'smooth'})};
- tr.innerHTML=`<td>${i+1}</td><td>${d.sku}</td><td>${rub(d.price)}</td><td>${money(d.cost)}</td><td>${money(d.targetCost)}</td><td class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</td><td class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</td><td>${range(d.totalForecast)}</td><td class="${d.monthProfit[1]>=0?'pos':'neg'}">${money(d.monthProfit[0])}～${money(d.monthProfit[1])}</td>`; b.appendChild(tr);});
+ const ozMonth=ozonMonthProfit(d);
+ tr.innerHTML=`<td>${i+1}</td><td>${d.sku}</td><td>${rub(d.price)}</td><td>${money(d.cost)}</td><td>${d.targetCost<0?'跨境不成立':money(d.targetCost)}</td><td class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</td><td class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</td><td>${range(d.totalForecast)}</td><td class="${ozMonth[1]>=0?'pos':'neg'}">${money(ozMonth[0])}～${money(ozMonth[1])}</td>`; b.appendChild(tr);});
 }
 function sortBy(k){
  if(k==='margin')sorted.sort((a,b)=>b.margin-a.margin);
  if(k==='profit')sorted.sort((a,b)=>b.profit-a.profit);
- if(k==='month')sorted.sort((a,b)=>((b.monthProfit[0]+b.monthProfit[1])/2)-((a.monthProfit[0]+a.monthProfit[1])/2));
+ if(k==='month')sorted.sort((a,b)=>{const bm=ozonMonthProfit(b),am=ozonMonthProfit(a);return ((bm[0]+bm[1])/2)-((am[0]+am[1])/2)});
  renderSelect(); renderTable(); renderDetail(Number(document.getElementById('skuSelect').value));
 }
 const b64bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
@@ -89,6 +126,7 @@ async function unlockWithPassword(password){
    document.getElementById('authPassword').value='';
    document.getElementById('authScreen').hidden=true;
    document.getElementById('appRoot').hidden=false;
+   upgradeLabels();
    sortBy('margin');
    return true;
  }catch(e){
