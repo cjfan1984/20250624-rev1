@@ -1,0 +1,104 @@
+name: SKU PWA V4 Google Sync
+
+on:
+  push:
+    branches: [sku-pwa-auth-test]
+    paths:
+      - 'sku-pwa-auth-tools/publish_dynamic_data.py'
+      - 'sku-pwa-auth-tools/build_dynamic_pwa_data.py'
+      - 'sku-pwa-auth-tools/automation_modules.py'
+      - 'sku-pwa-auth-tools/advanced_modules.py'
+      - 'sku-pwa-auth-tools/encrypt_pwa_public.py'
+      - 'sku-pwa-auth-tools/make_v4_fragments.py'
+      - '.github/workflows/sku-pwa-v4-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sku-pwa-v4-google-sync
+  cancel-in-progress: true
+
+env:
+  SKU_SHEET_ID: 108o5gtxkUsWEZI8xfZFE89Kq83IfStQGNm6dvjIlAkk
+  GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sku-pwa-auth-test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install V4 sync dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install cryptography
+      - name: Verify Google authorization is connected
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo '::error::GOOGLE_SERVICE_ACCOUNT_JSON is not configured; cannot generate authoritative V4 data.'
+            exit 1
+          fi
+          echo 'GOOGLE_AUTH_PRESENT=true'
+      - name: Build authoritative V4 automation dataset and encrypt with public key
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sku-v4 && mkdir -p /tmp/sku-v4
+          python sku-pwa-auth-tools/publish_dynamic_data.py \
+            --spreadsheet-id "$SKU_SHEET_ID" \
+            --keyring sku-pwa-auth-src/hybrid-keyring.json \
+            --output-dir /tmp/sku-v4 | tee v4-sync.json
+          python sku-pwa-auth-tools/make_v4_fragments.py \
+            --envelope /tmp/sku-v4/sku-data.enc.json \
+            --version-source /tmp/sku-v4/pwa-data-version.json | tee v4-fragments.json
+      - name: Contract QA for dynamic N records and 9/9 fragments
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 01 02 03 04 05 06 07 08 09; do test -s "sku-pwa-auth-data/sku-data.part${i}"; done
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          text=''.join(Path(f'sku-pwa-auth-data/sku-data.part{i:02d}').read_text() for i in range(1,10))
+          env=json.loads(text);v=json.loads(Path('sku-pwa-auth-data/pwa-data-version.json').read_text())
+          assert env['kind']=='SKU-PWA-HYBRID-ENVELOPE'
+          assert env['payloadSchema']=='SKU-DYNAMIC-AUTOMATION-V4'
+          assert v['schema']=='SKU-PWA-EXTERNAL-DATA-V4'
+          assert v['payloadSchema']=='SKU-DYNAMIC-AUTOMATION-V4'
+          assert v['fragmentCount']==9
+          assert env['records']==v['records'] and env['records']>0
+          assert hashlib.sha256(text.encode()).hexdigest()==v['envelopeSha256']
+          print('V4_DYNAMIC_CONTRACT=PASS records=',env['records'],'version=',v['version'])
+          PY
+      - name: Commit encrypted V4 data only when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sku-pwa-auth-data/sku-data.part01 sku-pwa-auth-data/sku-data.part02 sku-pwa-auth-data/sku-data.part03 sku-pwa-auth-data/sku-data.part04 sku-pwa-auth-data/sku-data.part05 sku-pwa-auth-data/sku-data.part06 sku-pwa-auth-data/sku-data.part07 sku-pwa-auth-data/sku-data.part08 sku-pwa-auth-data/sku-data.part09 sku-pwa-auth-data/pwa-data-version.json
+          if git diff --cached --quiet; then
+            echo 'V4_DATA_CHANGED=false'
+            exit 0
+          fi
+          git commit -m 'Sync dynamic V4 encrypted SKU data'
+          git push origin HEAD:sku-pwa-auth-test
+          echo 'V4_DATA_CHANGED=true'
+      - name: Upload private QA summaries only
+        uses: actions/upload-artifact@v4
+        with:
+          name: sku-v4-sync-qa
+          path: |
+            v4-sync.json
+            v4-fragments.json
+          retention-days: 7
