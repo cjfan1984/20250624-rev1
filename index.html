@@ -88,177 +88,36 @@ function renderSelect(){
 }
 
 const DASHBOARD_VERSION_DATE='2026-08-27';
+const num=v=>Number.isFinite(Number(v))?Number(v):0;
+const known=(d,k)=>Boolean(d && d[k]);
+const fmtMoney=(v,ok=true)=>ok?`¥${num(v).toFixed(2)}`:'待补';
+const fmtRub=(v,ok=true)=>ok?`${Math.round(num(v)).toLocaleString()} RUB`:'待补';
+const fmtPct=(v,ok=true)=>ok?`${num(v).toFixed(1)}%`:'待补';
+const fmtKg=(v,ok=true)=>ok?`${num(v).toFixed(3)} kg`:'待补';
+const safeText=v=>(v===null||v===undefined||v===''||v==='待补/未闭环')?'待补':String(v);
+const profitScore=d=>known(d,'profitKnown')?num(d.profit):-1e15;
+const marginScore=d=>known(d,'profitKnown')?num(d.margin):-1e15;
+function normalizeRow(d){const x={...d};['rank','price','cost','weight','cel','profit','margin','targetCost','ozonUnits','wbOrders','wbSearch','packageL','packageW','packageH','chargeWeight'].forEach(k=>x[k]=num(x[k]));x.links=x.links||{};x.ozForecast=Array.isArray(x.ozForecast)?x.ozForecast:[0,0];x.wbForecast=Array.isArray(x.wbForecast)?x.wbForecast:[0,0];x.totalForecast=Array.isArray(x.totalForecast)?x.totalForecast:[0,0];x.linkStatus=x.linkStatus||{};return x;}
 function isStandaloneMode(){return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;}
-async function copyExternalText(text){
- try{await navigator.clipboard.writeText(text);return true;}catch(e){
-  try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok;}catch(_){return false;}
- }
-}
-function openPlatformLink(event,platform,url,sku){
- if(event)event.preventDefault();
- if(isStandaloneMode()){
-   window.location.href=url;
-   return false;
- }
- const old=document.getElementById('platformLaunchOverlay');if(old)old.remove();
- const overlay=document.createElement('div');overlay.id='platformLaunchOverlay';
- overlay.style.cssText='position:fixed;inset:0;z-index:500;background:rgba(15,23,42,.48);display:flex;align-items:flex-end;justify-content:center;padding:14px';
- const box=document.createElement('div');box.style.cssText='width:min(100%,430px);background:#fff;border-radius:20px;padding:18px;box-shadow:0 18px 50px rgba(15,23,42,.25);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif';
- const title=document.createElement('div');title.style.cssText='font-size:18px;font-weight:800;margin-bottom:8px';title.textContent='打开 '+platform;
- const msg=document.createElement('div');msg.style.cssText='font-size:12px;line-height:1.65;color:#667085;margin-bottom:12px';
- msg.textContent='当前不是主屏幕PWA模式。内置浏览器的网络出口可能被 '+platform+' 识别为VPN。建议先把SKU决策添加到主屏幕并从图标打开；也可以复制链接后用Safari打开。';
- const make=(label,primary=false)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.style.cssText='width:100%;min-height:46px;margin-top:8px;border-radius:12px;border:'+(primary?'0':'1px solid #d0d5dd')+';background:'+(primary?'#2563eb':'#fff')+';color:'+(primary?'#fff':'#172033')+';font-weight:750;font-size:14px';return b};
- const tryBtn=make('仍然尝试打开 '+platform,true);tryBtn.onclick=()=>{overlay.remove();window.open(url,'_blank','noopener,noreferrer')};
- const copyBtn=make('复制平台链接');copyBtn.onclick=async()=>{const ok=await copyExternalText(url);copyBtn.textContent=ok?'✓ 链接已复制':'复制失败，请长按链接复制'};
- const keyBtn=make('复制搜索词：'+sku);keyBtn.onclick=async()=>{const ok=await copyExternalText(sku);keyBtn.textContent=ok?'✓ 搜索词已复制':'复制失败，请手动复制'};
- const closeBtn=make('取消');closeBtn.onclick=()=>overlay.remove();
- box.append(title,msg,tryBtn,copyBtn,keyBtn,closeBtn);overlay.appendChild(box);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});document.body.appendChild(overlay);
- return false;
-}
-function linkStatus(url){
- return /\/search\/|search\.aspx|search_result/i.test(url||'')?'搜索结果｜待核精确商品':'精确商品页';
-}
-function dataQuality(d){
- if(d.ozonUnits>0 && d.wbOrders>0 && d.cost>0 && d.weight>0)return 'B';
- return 'C';
-}
-function targetCostDisplay(d){return d.targetCost<0?'跨境模型不成立':money(d.targetCost);}
-function ozonMonthProfit(d){return [d.profit*d.ozForecast[0],d.profit*d.ozForecast[1]];}
-async function manualRefresh(){
- const btn=document.getElementById('refreshBtn');
- if(btn){btn.disabled=true;btn.textContent='刷新中…';}
- try{
-   if('serviceWorker' in navigator){
-     const regs=await navigator.serviceWorker.getRegistrations();
-     await Promise.all(regs.map(r=>r.update().catch(()=>{})));
-   }
-   if('caches' in window){
-     const keys=await caches.keys();
-     await Promise.all(keys.map(k=>caches.delete(k)));
-   }
- }finally{
-   const u=new URL(window.location.href);
-   u.searchParams.set('_refresh',Date.now().toString());
-   window.location.replace(u.toString());
- }
-}
-function upgradeLabels(){
- const th=document.querySelectorAll('.ranking th');
- if(th[8])th[8].textContent='Ozon月利润情景';
- const btn=document.querySelectorAll('.toggle button');
- if(btn[2])btn[2].textContent='按Ozon月利润';
- const hp=document.querySelector('.hero p');
- if(hp)hp.textContent='总览 → 排名 → SKU选择 → 产品卡。利润只展示当前已成立的Ozon跨境模型；WB利润、包装体积、精确竞品等未闭环字段明确标注待补，不再用代理值冒充。';
- const lock=document.getElementById('lockBtn');
- if(lock && !document.getElementById('refreshBtn')){
-   const rb=document.createElement('button');
-   rb.id='refreshBtn';rb.type='button';rb.className='lock-btn';rb.textContent='↻ 人工刷新';rb.title='强制获取服务器最新版本';
-   rb.style.marginRight='8px';rb.addEventListener('click',manualRefresh);
-   lock.insertAdjacentElement('afterend',rb);
- }
-}
-function renderDetail(id){
- const d=data.find(x=>x.rank===id)||sorted[0]; const [bt,bc]=badge(d);
- const ozMonth=ozonMonthProfit(d);
- const quality=dataQuality(d);
- const targetInvalid=d.targetCost<0;
- const wbDemand=d.wbOrders?d.wbOrders.toLocaleString():'待补';
- const ozLinkState=linkStatus(d.links.ozon), wbLinkState=linkStatus(d.links.wb);
- const specState=(d.spec||'').includes('待核')?'存在待核规格':'主要规格已记录';
- document.getElementById('detail').innerHTML=`<div class="card">
- <div class="titleline"><div><h2>${d.sku}</h2><div class="family">产品卡｜${d.family}｜${d.action}</div></div><span class="badge ${bc}">${bt}</span></div>
- <div style="margin-top:12px;padding:12px 14px;border:1px solid ${quality==='B'?'#bfdbfe':'#fed7aa'};background:${quality==='B'?'#eff6ff':'#fff7ed'};border-radius:14px;font-size:12px;line-height:1.65">
-   <b>数据闭环等级：${quality}</b>　｜　驾驶舱更新：${DASHBOARD_VERSION_DATE}　｜　市场原始采集日：待逐SKU补录<br>
-   A=精确SKU＋双平台真实利润＋包装/采购闭环；B=已有双平台需求证据但仍缺关键成本/竞品字段；C=关键需求或成本证据未闭环。当前没有把估算数据标成A级。
- </div>
- <div class="grid">
-  <div class="metric"><small>Ozon售价 / 当前模型价</small><strong>${rub(d.price)}</strong><div class="sub">用于当前Ozon跨境利润模型</div></div>
-  <div class="metric"><small>15%净利率采购上限</small><strong class="${targetInvalid?'neg':''}">${targetCostDisplay(d)}</strong><div class="sub">${targetInvalid?'即使采购成本为0，当前跨境模型也达不到15%净利率':'目标成本上限'}</div></div>
-  <div class="metric"><small>实际/核价成本</small><strong>${money(d.cost)}</strong><div class="sub">成本来源仍需拆分：公开价 / 条件价 / 情景价</div></div>
-  <div class="metric"><small>Ozon平台费用</small><strong>${money(d.fee)}</strong><div class="sub">当前按Ozon 21.5%模型</div></div>
-  <div class="metric"><small>CEL跨境运费</small><strong>${money(d.freight)}</strong><div class="sub">CEL计费：${d.cel.toFixed(2)} RUB；包装体积待补</div></div>
-  <div class="metric"><small>Ozon单件净利润</small><strong class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</strong><div class="sub">不再代理WB利润</div></div>
-  <div class="metric"><small>Ozon净利率</small><strong class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</strong><div class="sub">准入线15%</div></div>
-  <div class="metric"><small>Ozon预计月单量</small><strong>${range(d.ozForecast)}单</strong><div class="sub">按现有需求证据形成的情景值</div></div>
-  <div class="metric"><small>Ozon月利润情景</small><strong class="${ozMonth[1]>=0?'pos':'neg'}">${money(ozMonth[0])}～${money(ozMonth[1])}</strong><div class="sub">仅Ozon；未混入WB代理利润</div></div>
-  <div class="metric"><small>双平台需求情景</small><strong>${range(d.totalForecast)}单</strong><div class="sub">Ozon ${range(d.ozForecast)} + WB ${range(d.wbForecast)}；仅需求，不代表双平台利润</div></div>
-  <div class="metric"><small>毛重</small><strong>${d.weight.toFixed(3)}kg</strong><div class="sub">净重：待补</div></div>
-  <div class="metric"><small>包装长×宽×高</small><strong>待补</strong><div class="sub">缺失会影响体积重和跨境运费判断</div></div>
-  <div class="metric"><small>体积重 / 最终计费重</small><strong>待补</strong><div class="sub">需包装尺寸后计算</div></div>
-  <div class="metric"><small>Ozon市场28天销量</small><strong>${d.ozonUnits.toLocaleString()}</strong><div class="sub">当前为竞品/产品族需求证据，不等同精确SKU销量</div></div>
-  <div class="metric"><small>WB搜索词30天下单</small><strong>${wbDemand}</strong><div class="sub">搜索词需求证据，不等于竞品SKU销量</div></div>
-  <div class="metric"><small>WB精确竞品SKU销量</small><strong>待补</strong><div class="sub">需要真实竞品商品级数据</div></div>
-  <div class="metric"><small>WB真实单件利润</small><strong>待补</strong><div class="sub">佣金、物流、广告、退货损耗尚未闭环</div></div>
-  <div class="metric"><small>供应商 / MOQ / 核价日期</small><strong>待补</strong><div class="sub">采购成本必须可追溯</div></div>
-  <div class="metric"><small>规格冻结状态</small><strong>${specState}</strong><div class="sub">未冻结规格不能直接放量</div></div>
-  <div class="metric"><small>竞品链接状态</small><strong>${ozLinkState.includes('待核')||wbLinkState.includes('待核')?'待核精确商品':'已核精确商品'}</strong><div class="sub">Ozon：${ozLinkState}；WB：${wbLinkState}</div></div>
- </div>
- <div class="spec"><b>产品规格：</b>${d.spec}</div>
- <div class="links">
-   <a href="${d.links['1688']}" target="_blank" rel="noopener">1688货源</a>
-   <a href="${d.links.taobao}" target="_blank" rel="noopener">淘宝货源</a>
-   <a href="${d.links.pdd}" target="_blank" rel="noopener">拼多多货源</a>
-   <a href="${d.links.wb}" onclick="return openPlatformLink(event,'WB',this.href,${JSON.stringify(d.sku)})" rel="noopener">WB需求/竞品</a>
-   <a href="${d.links.ozon}" onclick="return openPlatformLink(event,'Ozon',this.href,${JSON.stringify(d.sku)})" rel="noopener">Ozon需求/竞品</a>
- </div>
- <div class="note"><b>当前结论口径：</b>Ozon利润可用于初筛；WB只保留需求证据，不再用Ozon利润代理WB。包装尺寸、体积重、供应商核价、精确竞品SKU销量和双平台真实费用闭环后，才升级为A级决策数据。</div>
- </div>`;
-}
-function renderTable(){
- const b=document.getElementById('tbody'); b.innerHTML='';
- const th=document.querySelectorAll('.ranking th');if(th[8])th[8].textContent='Ozon月利润情景';
- sorted.forEach((d,i)=>{const tr=document.createElement('tr');tr.onclick=()=>{document.getElementById('skuSelect').value=d.rank;renderDetail(d.rank);window.scrollTo({top:0,behavior:'smooth'})};
- const ozMonth=ozonMonthProfit(d);
- tr.innerHTML=`<td>${i+1}</td><td>${d.sku}</td><td>${rub(d.price)}</td><td>${money(d.cost)}</td><td>${d.targetCost<0?'跨境不成立':money(d.targetCost)}</td><td class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</td><td class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</td><td>${range(d.totalForecast)}</td><td class="${ozMonth[1]>=0?'pos':'neg'}">${money(ozMonth[0])}～${money(ozMonth[1])}</td>`; b.appendChild(tr);});
-}
-function sortBy(k){
- if(k==='margin')sorted.sort((a,b)=>b.margin-a.margin);
- if(k==='profit')sorted.sort((a,b)=>b.profit-a.profit);
- if(k==='month')sorted.sort((a,b)=>{const bm=ozonMonthProfit(b),am=ozonMonthProfit(a);return ((bm[0]+bm[1])/2)-((am[0]+am[1])/2)});
- renderSelect(); renderTable(); renderDetail(Number(document.getElementById('skuSelect').value));
-}
+async function copyExternalText(text){try{await navigator.clipboard.writeText(text);return true;}catch(e){return false;}}
+function openPlatformLink(event,platform,url,sku){if(event)event.preventDefault();if(!url)return false;if(isStandaloneMode()){window.location.href=url;return false;}window.open(url,'_blank','noopener,noreferrer');return false;}
+function linkStatus(url,explicit){if(explicit)return explicit;if(!url)return '待补';return /\/search\/|search\.aspx|search_result|search\/\?text/i.test(url)?'搜索入口｜待核精确商品':'商品页｜仍需人工复核';}
+function statusBadge(d){if(!known(d,'profitKnown'))return ['利润待补','warn'];if(num(d.profit)<0)return ['负利润','bad'];if(num(d.margin)>=20)return ['≥20%','good'];if(num(d.margin)>=15)return ['15–20%','good'];return ['低于15%','warn'];}
+function quality(d){if(known(d,'profitKnown') && d.linkStatus && !String(d.linkStatus.supply||'').includes('待'))return 'B';if(known(d,'profitKnown'))return 'B';return 'C';}
+function packageText(d){if(d.packageL>0&&d.packageW>0&&d.packageH>0)return `${d.packageL}×${d.packageW}×${d.packageH} cm`;return '待补';}
+function supplierText(d){const p=safeText(d.supplyPlatform);const m=(d.moq!==null&&d.moq!==undefined&&String(d.moq)!==''&&num(d.moq)>0)?`MOQ ${num(d.moq).toLocaleString()}`:'MOQ待补';return `${p}｜${m}`;}
+function reviewText(d){const v=safeText(d.reviewInsights);return v==='待补'?'待抓取真实竞品评论':v;}
+async function manualRefresh(){const btn=document.getElementById('refreshBtn');if(btn){btn.disabled=true;btn.textContent='刷新中…';}try{if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update().catch(()=>{})));}if('caches' in window){const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));}}finally{const u=new URL(window.location.href);u.searchParams.set('_refresh',Date.now().toString());window.location.replace(u.toString());}}
+function updateKpis(){const ks=document.querySelectorAll('.kpi');const calc=data.filter(d=>known(d,'profitKnown'));const pass=calc.filter(d=>d.margin>=15).length;const posLow=calc.filter(d=>d.profit>0&&d.margin<15).length;const neg=calc.filter(d=>d.profit<0).length;if(ks[0]){ks[0].querySelector('b').textContent=data.length;ks[0].querySelector('span').textContent='全库产品卡';}if(ks[1]){ks[1].querySelector('b').textContent=calc.length;ks[1].querySelector('span').textContent='净利润可计算';}if(ks[2]){ks[2].querySelector('b').textContent=pass;ks[2].querySelector('span').textContent='净利率≥15%';}if(ks[3]){ks[3].querySelector('b').textContent=data.length-calc.length;ks[3].querySelector('span').textContent='利润待补';}}
+function upgradeLabels(){document.title='全库 SKU 选品产品卡';const foot=document.querySelector('.auth-foot');if(foot)foot.textContent='全库SKU数据已加密存储。关闭或重新加载页面后需要重新输入密码。';const hh=document.querySelector('.hero h1');if(hh)hh.textContent=`全库 ${data.length} SKU 选品决策驾驶舱`;const hp=document.querySelector('.hero p');if(hp)hp.textContent='全库产品卡 → 净利润排名 → 数据闭环 → 竞品差评 → 货源与竞品链接。未闭环SKU也进入产品卡，但不伪造利润排名。';const th=document.querySelectorAll('.ranking th');const labels=['排名','SKU','优先级','Ozon售价','采购成本','单件净利润','净利率','数据状态','更新时间'];labels.forEach((x,i)=>{if(th[i])th[i].textContent=x});const btn=document.querySelectorAll('.toggle button');if(btn[0])btn[0].textContent='按净利率';if(btn[1])btn[1].textContent='按单件利润';if(btn[2])btn[2].textContent='按主库顺序';const lock=document.getElementById('lockBtn');if(lock && !document.getElementById('refreshBtn')){const rb=document.createElement('button');rb.id='refreshBtn';rb.type='button';rb.className='lock-btn';rb.textContent='↻ 人工刷新';rb.title='清缓存并强制获取服务器最新版本';rb.style.marginRight='8px';rb.addEventListener('click',manualRefresh);lock.insertAdjacentElement('afterend',rb);}updateKpis();}
+function renderSelect(){const s=document.getElementById('skuSelect');const current=s.value;s.innerHTML='';sorted.forEach((d,i)=>{const o=document.createElement('option');o.value=d.rank;const p=known(d,'profitKnown')?`${fmtMoney(d.profit)}｜${fmtPct(d.margin)}`:'利润待补';o.text=`${i+1}｜${d.sku}｜${p}`;s.appendChild(o);});if(current && [...s.options].some(o=>o.value===current))s.value=current;else if(sorted[0])s.value=sorted[0].rank;s.onchange=()=>renderDetail(Number(s.value));}
+function renderDetail(id){const d=data.find(x=>x.rank===id)||sorted[0];if(!d)return;const [bt,bc]=statusBadge(d),q=quality(d);const supplyState=linkStatus(d.links['1688'],d.linkStatus.supply);const wbState=linkStatus(d.links.wb,d.linkStatus.wb);const ozState=linkStatus(d.links.ozon,d.linkStatus.ozon);const review=reviewText(d);const reviewEvidence=safeText(d.reviewEvidence);const improvement=safeText(d.improvement);const blocker=safeText(d.blocker);const profitKnown=known(d,'profitKnown');const priceKnown=known(d,'priceKnown');const costKnown=known(d,'costKnown');const weightKnown=known(d,'weightKnown');document.getElementById('detail').innerHTML=`<div class="card"><div class="titleline"><div><h2>${d.sku}</h2><div class="family">产品卡｜${safeText(d.system)}｜${safeText(d.family)}｜优先级 ${safeText(d.priority)}</div></div><span class="badge ${bc}">${bt}</span></div><div style="margin-top:12px;padding:12px 14px;border:1px solid ${q==='B'?'#bfdbfe':'#fed7aa'};background:${q==='B'?'#eff6ff':'#fff7ed'};border-radius:14px;font-size:12px;line-height:1.65"><b>数据闭环等级：${q}</b> ｜ 主库行：${d.rank} ｜ 数据更新：${safeText(d.updated)} ｜ 研究状态：${safeText(d.researchStatus)}<br>${profitKnown?'当前净利润已可计算并参与排名。':'当前利润条件未闭环：产品卡保留，但不参与净利润排名。'}</div><div class="grid"><div class="metric"><small>Ozon当前/目标售价</small><strong>${fmtRub(d.price,priceKnown)}</strong><div class="sub">${safeText(d.officialCoverage)}</div></div><div class="metric"><small>实际/核价采购成本</small><strong>${fmtMoney(d.cost,costKnown)}</strong><div class="sub">${safeText(d.evidence)}</div></div><div class="metric"><small>单件跨境净利润</small><strong class="${profitKnown?(d.profit>=0?'pos':'neg'):''}">${fmtMoney(d.profit,profitKnown)}</strong><div class="sub">${profitKnown?'参与全库可计算SKU排名':'不可排名'}</div></div><div class="metric"><small>跨境净利率</small><strong class="${profitKnown?(d.margin>=15?'pos':'neg'):''}">${fmtPct(d.margin,profitKnown)}</strong><div class="sub">准入线15%</div></div><div class="metric"><small>15%采购上限</small><strong>${fmtMoney(d.targetCost,profitKnown&&d.targetCost>0)}</strong><div class="sub">${profitKnown&&d.targetCost<=0?'当前跨境模型不成立':'目标成本上限'}</div></div><div class="metric"><small>CEL计费</small><strong>${d.cel>0?`${d.cel.toFixed(2)} RUB`:'待补'}</strong><div class="sub">物流需随计费重复核</div></div><div class="metric"><small>毛重</small><strong>${fmtKg(d.weight,weightKnown)}</strong><div class="sub">包装/实称优先</div></div><div class="metric"><small>包装尺寸</small><strong>${packageText(d)}</strong><div class="sub">计费重：${d.chargeWeight>0?`${d.chargeWeight.toFixed(3)} kg`:'待补'}</div></div><div class="metric"><small>Ozon需求证据</small><strong>${d.ozonUnits>0?d.ozonUnits.toLocaleString():'待补'}</strong><div class="sub">${safeText(d.matchLevel)}</div></div><div class="metric"><small>WB需求证据</small><strong>${d.wbOrders>0?d.wbOrders.toLocaleString():'待补'}</strong><div class="sub">搜索/订单证据≠精确SKU销量</div></div><div class="metric"><small>供应商 / MOQ</small><strong>${supplierText(d)}</strong><div class="sub">${supplyState}</div></div><div class="metric"><small>唯一阻塞点</small><strong>${blocker}</strong><div class="sub">先解决最影响决策的一项</div></div></div><div class="spec"><b>产品规格：</b>${safeText(d.spec)}</div><div style="margin-top:14px;padding:14px;border:1px solid #fecaca;background:#fff7f7;border-radius:14px;font-size:13px;line-height:1.7"><b>竞品差评洞察</b><br><b>高频差评：</b>${review}<br><b>差评证据：</b>${reviewEvidence}<br><b>可改进 / 验货要求：</b>${improvement}</div><div class="links"><a href="${d.links['1688']||'#'}" target="_blank" rel="noopener">货源入口</a><a href="${d.links.taobao||'#'}" target="_blank" rel="noopener">淘宝货源</a><a href="${d.links.pdd||'#'}" target="_blank" rel="noopener">拼多多货源</a><a href="${d.links.wb||'#'}" onclick="return openPlatformLink(event,'WB',this.href,${JSON.stringify(d.sku)})" rel="noopener">WB竞品</a><a href="${d.links.ozon||'#'}" onclick="return openPlatformLink(event,'Ozon',this.href,${JSON.stringify(d.sku)})" rel="noopener">Ozon竞品</a></div><div class="note"><b>链接核验：</b>货源：${supplyState}；WB：${wbState}；Ozon：${ozState}。搜索入口不算精确竞品/精确货源，必须实际打开并核规格后才升级。</div></div>`;}
+function renderTable(){const b=document.getElementById('tbody');b.innerHTML='';sorted.forEach((d,i)=>{const tr=document.createElement('tr');tr.onclick=()=>{document.getElementById('skuSelect').value=d.rank;renderDetail(d.rank);window.scrollTo({top:0,behavior:'smooth'})};const pk=known(d,'profitKnown');tr.innerHTML=`<td>${i+1}</td><td>${d.sku}</td><td>${safeText(d.priority)}</td><td>${fmtRub(d.price,known(d,'priceKnown'))}</td><td>${fmtMoney(d.cost,known(d,'costKnown'))}</td><td class="${pk?(d.profit>=0?'pos':'neg'):''}">${fmtMoney(d.profit,pk)}</td><td class="${pk?(d.margin>=15?'pos':'neg'):''}">${fmtPct(d.margin,pk)}</td><td>${pk?'可计算':'待补/不可排名'}</td><td>${safeText(d.updated)}</td>`;b.appendChild(tr);});}
+function sortBy(k){if(k==='margin')sorted.sort((a,b)=>marginScore(b)-marginScore(a)||a.rank-b.rank);else if(k==='profit')sorted.sort((a,b)=>profitScore(b)-profitScore(a)||a.rank-b.rank);else sorted.sort((a,b)=>a.rank-b.rank);renderSelect();renderTable();if(sorted[0])renderDetail(Number(document.getElementById('skuSelect').value||sorted[0].rank));}
 const b64bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-async function decryptPayload(password){
- const te=new TextEncoder(), td=new TextDecoder();
- const keyMaterial=await crypto.subtle.importKey('raw',te.encode(password),'PBKDF2',false,['deriveKey']);
- const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64bytes(ENCRYPTED_PAYLOAD.salt),iterations:ENCRYPTED_PAYLOAD.iterations,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['decrypt']);
- const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64bytes(ENCRYPTED_PAYLOAD.iv),additionalData:te.encode(ENCRYPTED_PAYLOAD.aad)},key,b64bytes(ENCRYPTED_PAYLOAD.cipher));
- return JSON.parse(td.decode(plain));
-}
-async function unlockWithPassword(password){
- const btn=document.getElementById('loginBtn'), err=document.getElementById('authError');
- btn.disabled=true; btn.textContent='验证中…'; err.textContent='';
- try{
-   const decoded=await decryptPayload(password);
-   if(!Array.isArray(decoded)||decoded.length!==31)throw new Error('payload');
-   data=decoded; sorted=[...data];
-   document.getElementById('authPassword').value='';
-   document.getElementById('authScreen').hidden=true;
-   document.getElementById('appRoot').hidden=false;
-   upgradeLabels();
-   sortBy('margin');
-   return true;
- }catch(e){
-   data=[]; sorted=[];
-   err.textContent='密码错误，请重新输入。';
-   return false;
- }finally{btn.disabled=false;btn.textContent='登录';}
-}
-function lockApp(){
- data=[];sorted=[];
- document.getElementById('skuSelect').innerHTML='';
- document.getElementById('detail').innerHTML='';
- document.getElementById('tbody').innerHTML='';
- document.getElementById('appRoot').hidden=true;
- document.getElementById('authScreen').hidden=false;
- const p=document.getElementById('authPassword');p.value='';p.focus();
-}
-document.getElementById('authForm').addEventListener('submit',async e=>{e.preventDefault();await unlockWithPassword(document.getElementById('authPassword').value)});
-document.getElementById('lockBtn').addEventListener('click',lockApp);
-setTimeout(()=>document.getElementById('authPassword').focus(),100);
-// PWA registration. Does not change SKU logic.
-if ('serviceWorker' in navigator) { window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
-const standalone=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
-const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-if(isIOS && !standalone && !localStorage.getItem('pwaTipHidden')){ setTimeout(()=>{const el=document.getElementById('installTip');if(el)el.style.display='block'},1200); }
+async function gunzipBytes(bytes){if(typeof DecompressionStream==='undefined')throw new Error('gzip unsupported');const ds=new DecompressionStream('gzip');const stream=new Blob([bytes]).stream().pipeThrough(ds);return new Uint8Array(await new Response(stream).arrayBuffer());}
+async function decryptPayload(password){const te=new TextEncoder(),td=new TextDecoder();const keyMaterial=await crypto.subtle.importKey('raw',te.encode(password),'PBKDF2',false,['deriveKey']);const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64bytes(ENCRYPTED_PAYLOAD.salt),iterations:ENCRYPTED_PAYLOAD.iterations,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['decrypt']);let plain=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64bytes(ENCRYPTED_PAYLOAD.iv),additionalData:te.encode(ENCRYPTED_PAYLOAD.aad)},key,b64bytes(ENCRYPTED_PAYLOAD.cipher)));if(ENCRYPTED_PAYLOAD.compressed==='gzip')plain=await gunzipBytes(plain);return JSON.parse(td.decode(plain));}
+async function unlockWithPassword(password){const btn=document.getElementById('loginBtn'),err=document.getElementById('authError');btn.disabled=true;btn.textContent='验证中…';err.textContent='';try{const decoded=await decryptPayload(password);if(!Array.isArray(decoded)||decoded.length<1)throw new Error('payload');data=decoded.map(normalizeRow);sorted=[...data];document.getElementById('authPassword').value='';document.getElementById('authScreen').hidden=true;document.getElementById('appRoot').hidden=false;upgradeLabels();sortBy('profit');return true;}catch(e){data=[];sorted=[];err.textContent=(String(e&&e.message).includes('gzip unsupported'))?'当前浏览器版本不支持全库压缩解密，请升级iOS/Safari。':'密码错误或数据版本异常，请重新输入。';return false;}finally{btn.disabled=false;btn.textContent='登录';}}
+function lockApp(){data=[];sorted=[];document.getElementById('skuSelect').innerHTML='';document.getElementById('detail').innerHTML='';document.getElementById('tbody').innerHTML='';document.getElementById('appRoot').hidden=true;document.getElementById('authScreen').hidden=false;const p=document.getElementById('authPassword');p.value='';p.focus();}
+document.title='全库 SKU 选品产品卡';const initialFoot=document.querySelector('.auth-foot');if(initialFoot)initialFoot.textContent='全库SKU数据已加密存储。关闭或重新加载页面后需要重新输入密码。';document.getElementById('authForm').addEventListener('submit',async e=>{e.preventDefault();await unlockWithPassword(document.getElementById('authPassword').value)});document.getElementById('lockBtn').addEventListener('click',lockApp);setTimeout(()=>document.getElementById('authPassword').focus(),100);if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}const standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);if(isIOS&&!standalone&&!localStorage.getItem('pwaTipHidden')){setTimeout(()=>{const el=document.getElementById('installTip');if(el)el.style.display='block'},1200);}
 </script></body></html>
