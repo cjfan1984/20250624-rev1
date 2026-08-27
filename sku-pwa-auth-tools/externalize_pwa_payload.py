@@ -15,13 +15,11 @@ async function loadExternalEncryptedPayload(){
   if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='加载数据…';}
   try{
     const versionUrl=new URL('./pwa-data-version.json',window.location.href);
-    versionUrl.searchParams.set('_ts',Date.now().toString());
     const vr=await fetch(versionUrl.toString(),{cache:'no-store'});
     if(!vr.ok)throw new Error(`version HTTP ${vr.status}`);
     const meta=await vr.json();
     if(!meta||!Number.isInteger(meta.records)||meta.records<1)throw new Error('version records invalid');
     const dataUrl=new URL('./sku-data.enc.json',window.location.href);
-    dataUrl.searchParams.set('v',String(meta.version||Date.now()));
     const dr=await fetch(dataUrl.toString(),{cache:'no-store'});
     if(!dr.ok)throw new Error(`data HTTP ${dr.status}`);
     const env=await dr.json();
