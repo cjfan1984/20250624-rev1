@@ -28,7 +28,6 @@ def build(root:Path,out:Path)->dict:
     literal=json.dumps(env,separators=(',',':'))
     html,n=re.subn(r'const ENCRYPTED_PAYLOAD=\{.*?\};\s*let data=', 'const ENCRYPTED_PAYLOAD='+literal+';\nlet data=',html,count=1,flags=re.S)
     if n!=1:raise SystemExit('production envelope overlay failed')
-    # Remove historical fixed-count UI before publishing the dynamic shell.
     html=html.replace('<title>31 SKU 选品决策卡</title>','<title>动态SKU 选品决策卡</title>')
     html=html.replace('31个SKU数据已加密存储。关闭或重新加载页面后需要重新输入密码。','动态SKU数据已加密存储。关闭或重新加载页面后需要重新输入密码。')
     html=html.replace('<h1>31 SKU 选品决策驾驶舱</h1>','<h1>动态SKU 选品决策驾驶舱</h1>')
@@ -37,7 +36,12 @@ def build(root:Path,out:Path)->dict:
     meta=externalize(index,env_tmp,out/'sku-data.enc.json',out/'pwa-data-version.json')
     env_tmp.unlink(missing_ok=True)
     shutil.copy2(src/'manifest.webmanifest',out/'manifest.webmanifest')
-    shutil.copy2(src/'sw.external.js',out/'sw.js')
+    sw=(src/'sw.external.js').read_text(encoding='utf-8')
+    old="const obs=new MutationObserver(()=>{ensureAutomationCenter();ensureChatGptBridge();renderAutomationCenter();});"
+    new="const obs=new MutationObserver(()=>{ensureAutomationCenter();ensureChatGptBridge();});"
+    if old not in sw:raise SystemExit('automation observer marker drifted')
+    sw=sw.replace(old,new,1)
+    (out/'sw.js').write_text(sw,encoding='utf-8')
     for size in (180,192,512):
         raw=base64.b64decode((icon_src/f'icon-{size}.b64').read_text(encoding='utf-8'))
         (out/'icons'/f'icon-{size}.png').write_bytes(raw)
@@ -46,6 +50,7 @@ def build(root:Path,out:Path)->dict:
     html_after=index.read_text(encoding='utf-8')
     if '"kind":"SKU-PWA-HYBRID-ENVELOPE"' in html_after:raise SystemExit('externalized HTML still contains encrypted dataset')
     if 'sku-data.enc.json' not in html_after or 'pwa-data-version.json' not in html_after:raise SystemExit('external data loader missing')
+    if 'renderAutomationCenter();});obs.observe' in sw:raise SystemExit('self-triggering automation observer remains')
     return meta
 
 def main():
