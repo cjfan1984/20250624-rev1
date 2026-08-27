@@ -1,0 +1,30 @@
+#!name=Ozon & WB DIRECT Split
+#!desc=Ozon/Wildberries 直连；其他流量继续走当前 Shadowrocket 代理节点。适用于中国网络访问俄平台时避免被识别为 VPN。
+
+[Rule]
+# Local/LAN safety
+IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+
+# Ozon direct
+DOMAIN-SUFFIX,ozon.ru,DIRECT
+DOMAIN-SUFFIX,ozonusercontent.com,DIRECT
+DOMAIN-SUFFIX,o3.ru,DIRECT
+DOMAIN-SUFFIX,o3t.ru,DIRECT
+DOMAIN-SUFFIX,ozon.com,DIRECT
+DOMAIN-SUFFIX,ozon.by,DIRECT
+DOMAIN-SUFFIX,ozon.kz,DIRECT
+DOMAIN-SUFFIX,ozon.com.by,DIRECT
+DOMAIN-SUFFIX,ozon.com.kz,DIRECT
+DOMAIN-SUFFIX,ozonru.me,DIRECT
+
+# Wildberries direct
+DOMAIN-SUFFIX,wildberries.ru,DIRECT
+DOMAIN-SUFFIX,wbbasket.ru,DIRECT
+DOMAIN-SUFFIX,wbstatic.net,DIRECT
+DOMAIN-SUFFIX,wb.ru,DIRECT
+
+# Preserve current 'global proxy' behavior for everything else
+FINAL,PROXY
