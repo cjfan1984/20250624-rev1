@@ -47,6 +47,20 @@ jobs:
           base64 -d sku-pwa-src/icon-192.b64 > sku-pwa/icons/icon-192.png
           base64 -d sku-pwa-src/icon-512.b64 > sku-pwa/icons/icon-512.png
           touch sku-pwa/.nojekyll
+          sha256sum sku-pwa/index.html | tee reconstructed-sha256.txt
+
+      - name: Upload reconstructed build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sku-pwa-reconstructed
+          path: |
+            sku-pwa/index.html
+            reconstructed-sha256.txt
+          retention-days: 2
+
+      - name: Enforce exact golden PWA hash
+        shell: bash
+        run: |
           echo "c9ec9fe3a1251b8856457de951d923cfba1d881b4910e35de3405dacd6ceb04c  sku-pwa/index.html" | sha256sum -c -
 
       - name: Verify frozen 31-SKU golden data
