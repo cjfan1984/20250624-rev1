@@ -1,0 +1,61 @@
+5", "taobao": "https://s.taobao.com/search?q=530PCS%E5%BD%A9%E8%89%B22%3A1%E7%9B%92%E8%A3%85", "pdd": "https://mobile.yangkeduo.com/search_result.html?search_key=530PCS%E5%BD%A9%E8%89%B22%3A1%E7%9B%92%E8%A3%85", "wb": "https://www.wildberries.ru/catalog/0/search.aspx?search=530PCS%E5%BD%A9%E8%89%B22%3A1%E7%9B%92%E8%A3%85", "ozon": "https://www.ozon.ru/search/?text=530PCS%E5%BD%A9%E8%89%B22%3A1%E7%9B%92%E8%A3%85"}}, {"rank": 30, "sku": "USB充电头灯", "family": "便携照明", "price": 403, "cost": 30.0, "weight": 0.2, "cel": 135.4, "profit": -18.31, "margin": -56.0, "targetCost": 6.78, "fee": 7.024719684132864, "freight": 10.977517978320618, "ozonUnits": 17751, "wbOrders": 3717, "action": "暂停/补证", "status": "负利润", "spec": "USB充电头灯｜COB泛光＋XPE聚光｜USB-C目标接口｜电池容量、续航及认证待核", "ozForecast": [89, 266], "wbForecast": [6, 17], "totalForecast": [95, 283], "monthProfit": [-1739.4499999999998, -5181.73], "links": {"1688": "https://s.1688.com/selloffer/offer_search.htm?keywords=USB%E5%85%85%E7%94%B5%E5%A4%B4%E7%81%AF", "taobao": "https://s.taobao.com/search?q=USB%E5%85%85%E7%94%B5%E5%A4%B4%E7%81%AF", "pdd": "https://mobile.yangkeduo.com/search_result.html?search_key=USB%E5%85%85%E7%94%B5%E5%A4%B4%E7%81%AF", "wb": "https://www.wildberries.ru/catalog/0/search.aspx?search=USB%E5%85%85%E7%94%B5%E5%A4%B4%E7%81%AF", "ozon": "https://www.ozon.ru/search/?text=USB%E5%85%85%E7%94%B5%E5%A4%B4%E7%81%AF"}}, {"rank": 31, "sku": "汽车湿磨230×280mm P400/P600/P800/P1000/P1500/P2000 12张", "family": "砂纸", "price": 180, "cost": 9.0, "weight": 0.303, "cel": 164.96, "profit": -13.92, "margin": -95.3, "targetCost": -7.11, "fee": 3.1375919184712546, "freight": 13.374086895891944, "ozonUnits": 4457, "wbOrders": 2769, "action": "暂停/补证", "status": "负利润", "spec": "汽车湿磨砂纸｜230×280mm｜P400/P600/P800/P1000/P1500/P2000各2张｜12张装｜耐水纸基/背标待核", "ozForecast": [22, 67], "wbForecast": [4, 12], "totalForecast": [26, 79], "monthProfit": [-361.92, -1099.68], "links": {"1688": "https://s.1688.com/selloffer/offer_search.htm?keywords=%E6%B1%BD%E8%BD%A6%E6%B9%BF%E7%A3%A8230%C3%97280mm%20P400/P600/P800/P1000/P1500/P2000%2012%E5%BC%A0", "taobao": "https://s.taobao.com/search?q=%E6%B1%BD%E8%BD%A6%E6%B9%BF%E7%A3%A8230%C3%97280mm%20P400/P600/P800/P1000/P1500/P2000%2012%E5%BC%A0", "pdd": "https://mobile.yangkeduo.com/search_result.html?search_key=%E6%B1%BD%E8%BD%A6%E6%B9%BF%E7%A3%A8230%C3%97280mm%20P400/P600/P800/P1000/P1500/P2000%2012%E5%BC%A0", "wb": "https://www.wildberries.ru/catalog/0/search.aspx?search=%E6%B1%BD%E8%BD%A6%E6%B9%BF%E7%A3%A8230%C3%97280mm%20P400/P600/P800/P1000/P1500/P2000%2012%E5%BC%A0", "ozon": "https://www.ozon.ru/search/?text=%E6%B1%BD%E8%BD%A6%E6%B9%BF%E7%A3%A8230%C3%97280mm%20P400/P600/P800/P1000/P1500/P2000%2012%E5%BC%A0"}}];
+let sorted=[...data];
+const money=n=>(n>=0?'¥':'-¥')+Math.abs(n).toFixed(2);
+const pct=n=>n.toFixed(1)+'%';
+const rub=n=>'₽'+Math.round(n).toLocaleString();
+const range=a=>a[0]===a[1]?String(a[0]):a[0]+'–'+a[1];
+function badge(d){if(d.margin>=20)return ['达到20%目标','good']; if(d.margin>=15)return ['15%–20%','warn']; if(d.profit>=0)return ['低于15%','warn']; return ['负利润','bad'];}
+function renderSelect(){
+ const s=document.getElementById('skuSelect'); const current=s.value; s.innerHTML='';
+ sorted.forEach((d,i)=>{const o=document.createElement('option');o.value=d.rank;o.textContent=`${i+1}｜${d.sku}｜${pct(d.margin)}`;s.appendChild(o)});
+ if(current && [...s.options].some(o=>o.value===current))s.value=current; else s.value=sorted[0].rank;
+ s.onchange=()=>renderDetail(Number(s.value));
+}
+function renderDetail(id){
+ const d=data.find(x=>x.rank===id)||sorted[0]; const [bt,bc]=badge(d);
+ const monthlyMid=(d.monthProfit[0]+d.monthProfit[1])/2;
+ document.getElementById('detail').innerHTML=`<div class="card">
+ <div class="titleline"><div><h2>${d.sku}</h2><div class="family">${d.family}｜${d.action}</div></div><span class="badge ${bc}">${bt}</span></div>
+ <div class="grid">
+  <div class="metric"><small>目标售价 / 当前Ozon价</small><strong>${rub(d.price)}</strong><div class="sub">当前用于跨境利润模型</div></div>
+  <div class="metric"><small>目标成本价</small><strong>${money(d.targetCost)}</strong><div class="sub">15%净利率采购上限</div></div>
+  <div class="metric"><small>实际/核价成本</small><strong>${money(d.cost)}</strong><div class="sub">公开价/条件价/情景价，需看核价状态</div></div>
+  <div class="metric"><small>平台费用</small><strong>${money(d.fee)}</strong><div class="sub">按Ozon 21.5%模型</div></div>
+  <div class="metric"><small>跨境运费</small><strong>${money(d.freight)}</strong><div class="sub">CEL：${d.cel.toFixed(2)} RUB</div></div>
+  <div class="metric"><small>单件净利润</small><strong class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</strong><div class="sub">当前跨境模型</div></div>
+  <div class="metric"><small>净利率</small><strong class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</strong><div class="sub">准入线15%</div></div>
+  <div class="metric"><small>预计月总单量</small><strong>${range(d.totalForecast)}单</strong><div class="sub">Ozon ${range(d.ozForecast)} + WB ${range(d.wbForecast)}</div></div>
+  <div class="metric"><small>月利润总额（代理）</small><strong class="${monthlyMid>=0?'pos':'neg'}">${money(d.monthProfit[0])}～${money(d.monthProfit[1])}</strong><div class="sub">暂用Ozon单件利润代理WB</div></div>
+  <div class="metric"><small>毛重</small><strong>${d.weight.toFixed(3)}kg</strong><div class="sub">影响CEL运费</div></div>
+  <div class="metric"><small>Ozon市场28天销量</small><strong>${d.ozonUnits.toLocaleString()}</strong><div class="sub">竞品/产品族证据</div></div>
+  <div class="metric"><small>WB需求证据</small><strong>${d.wbOrders?d.wbOrders.toLocaleString():'待补'}</strong><div class="sub">30天搜索词下单，不等于竞品SKU销量</div></div>
+ </div>
+ <div class="spec"><b>产品规格：</b>${d.spec}</div>
+ <div class="links">
+   <a href="${d.links['1688']}" target="_blank" rel="noopener">1688货源</a>
+   <a href="${d.links.taobao}" target="_blank" rel="noopener">淘宝货源</a>
+   <a href="${d.links.pdd}" target="_blank" rel="noopener">拼多多货源</a>
+   <a href="${d.links.wb}" target="_blank" rel="noopener">WB对标竞品</a>
+   <a href="${d.links.ozon}" target="_blank" rel="noopener">Ozon对标竞品</a>
+ </div>
+ <div class="note">链接规则：若精确商品页尚未核实，按钮进入该平台的同规格搜索结果，不留空、不冒充精确货源。月利润总额目前为双平台代理估算；WB真实佣金与跨境物流闭环后会替换为正式值。</div>
+ </div>`;
+}
+function renderTable(){
+ const b=document.getElementById('tbody'); b.innerHTML='';
+ sorted.forEach((d,i)=>{const tr=document.createElement('tr');tr.onclick=()=>{document.getElementById('skuSelect').value=d.rank;renderDetail(d.rank);window.scrollTo({top:0,behavior:'smooth'})};
+ tr.innerHTML=`<td>${i+1}</td><td>${d.sku}</td><td>${rub(d.price)}</td><td>${money(d.cost)}</td><td>${money(d.targetCost)}</td><td class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</td><td class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</td><td>${range(d.totalForecast)}</td><td class="${d.monthProfit[1]>=0?'pos':'neg'}">${money(d.monthProfit[0])}～${money(d.monthProfit[1])}</td>`; b.appendChild(tr);});
+}
+function sortBy(k){
+ if(k==='margin')sorted.sort((a,b)=>b.margin-a.margin);
+ if(k==='profit')sorted.sort((a,b)=>b.profit-a.profit);
+ if(k==='month')sorted.sort((a,b)=>((b.monthProfit[0]+b.monthProfit[1])/2)-((a.monthProfit[0]+a.monthProfit[1])/2));
+ renderSelect(); renderTable(); renderDetail(Number(document.getElementById('skuSelect').value));
+}
+sortBy('margin');
+// PWA registration. Does not change SKU logic.
+if ('serviceWorker' in navigator) { window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+const standalone=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+if(isIOS && !standalone && !localStorage.getItem('pwaTipHidden')){ setTimeout(()=>{const el=document.getElementById('installTip');if(el)el.style.display='block'},1200); }
+</script></body></html>
