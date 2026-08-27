@@ -109,13 +109,12 @@ jobs:
           git push --force origin HEAD:refs/heads/sku-pwa-public
           echo "Published commit: $PUBLISH_SHA"
 
-      - name: Verify immutable Statically PWA with real browser
+      - name: Verify immutable GitHubRaw PWA with real browser
         shell: bash
         run: |
           set -euo pipefail
-          REPO="${GITHUB_REPOSITORY}"
           SHA=$(cat /tmp/publish-sha.txt)
-          URL="https://cdn.statically.io/gh/${REPO}@${SHA}/index.html"
+          URL="https://cdn.githubraw.com/cjfan1984/20250624-rev1/${SHA}/index.html"
           echo "$URL" | tee pwa-url.txt
           READY=0
           for i in {1..36}; do
