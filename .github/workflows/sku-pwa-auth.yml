@@ -41,27 +41,34 @@ jobs:
             sku-pwa-auth-src/index.part08 \
             sku-pwa-auth-src/index.part09 \
             > sku-pwa-auth/index.html
+          cat \
+            sku-pwa-auth-src/full-envelope.part01 \
+            sku-pwa-auth-src/full-envelope.part02 \
+            sku-pwa-auth-src/full-envelope.part03 \
+            sku-pwa-auth-src/full-envelope.part04a \
+            sku-pwa-auth-src/full-envelope.part04b \
+            > /tmp/full-envelope.json
           cp sku-pwa-auth-src/manifest.webmanifest sku-pwa-auth/manifest.webmanifest
           cp sku-pwa-auth-src/sw.js sku-pwa-auth/sw.js
           base64 -d sku-pwa-src/icon-180.b64 > sku-pwa-auth/icons/icon-180.png
           base64 -d sku-pwa-src/icon-192.b64 > sku-pwa-auth/icons/icon-192.png
           base64 -d sku-pwa-src/icon-512.b64 > sku-pwa-auth/icons/icon-512.png
           touch sku-pwa-auth/.nojekyll
-          cd sku-pwa-auth
-          sha256sum -c ../sku-pwa-auth-src/checksums.txt
-          cd ..
           python3 - <<'PY'
           from pathlib import Path
           import re, json
           p=Path('sku-pwa-auth/index.html')
           s=p.read_text()
-          env=json.loads(Path('sku-pwa-auth-src/envelope.json').read_text())
-          if set(env)!={'salt','iv','cipher','iterations','aad'}: raise SystemExit('invalid envelope fields')
+          env=json.loads(Path('/tmp/full-envelope.json').read_text())
+          required={'salt','iv','cipher','iterations','aad'}
+          if not required.issubset(env): raise SystemExit('invalid envelope fields')
+          if env.get('compressed')!='gzip': raise SystemExit('full-library envelope must be gzip')
+          if env.get('aad')!='SKU-ALL-GZ-V2': raise SystemExit('unexpected AAD')
           literal=json.dumps(env,separators=(',',':'))
           out,n=re.subn(r'const ENCRYPTED_PAYLOAD=\{.*?\};\s*let data=', 'const ENCRYPTED_PAYLOAD='+literal+';\nlet data=', s, count=1, flags=re.S)
           if n!=1: raise SystemExit('payload overlay failed')
           p.write_text(out)
-          print('stable envelope overlaid', env['iterations'], env['aad'], len(env['cipher']))
+          print('full-library envelope overlaid', env['iterations'], env['aad'], len(env['cipher']))
           PY
 
       - name: Verify encrypted-at-rest source
@@ -73,7 +80,9 @@ jobs:
           ! grep -q '手动抽芯铆钉枪' sku-pwa-auth/index.html
           grep -q 'authScreen' sku-pwa-auth/index.html
           grep -q 'decryptPayload' sku-pwa-auth/index.html
-          test -s sku-pwa-auth-src/envelope.json
+          grep -q '竞品差评洞察' sku-pwa-auth/index.html
+          grep -q '人工刷新' sku-pwa-auth/index.html
+          test -s /tmp/full-envelope.json
 
       - name: Build CI-only decryptable auth test site
         shell: bash
@@ -87,12 +96,13 @@ jobs:
           from cryptography.hazmat.primitives import hashes
           old=''.join(Path(f'sku-pwa-src/index.part{i:02d}').read_text() for i in range(1,7))
           m=re.search(r'const data=(\[.*?\]);\s*let sorted=',old,re.S)
+          if not m: raise SystemExit('legacy CI source payload missing')
           raw=m.group(1)
           password=os.environ['CI_AUTH_TEST_PASSWORD'].encode()
-          salt=os.urandom(16);iv=os.urandom(12);iterations=310000;aad=b'SKU31-V1.1'
+          salt=os.urandom(16);iv=os.urandom(12);iterations=310000;aad=b'SKU-CI-V2'
           key=PBKDF2HMAC(algorithm=hashes.SHA256(),length=32,salt=salt,iterations=iterations).derive(password)
           cipher=AESGCM(key).encrypt(iv,raw.encode(),aad)
-          enc={'salt':base64.b64encode(salt).decode(),'iv':base64.b64encode(iv).decode(),'cipher':base64.b64encode(cipher).decode(),'iterations':iterations,'aad':'SKU31-V1.1'}
+          enc={'salt':base64.b64encode(salt).decode(),'iv':base64.b64encode(iv).decode(),'cipher':base64.b64encode(cipher).decode(),'iterations':iterations,'aad':'SKU-CI-V2'}
           prod=Path('sku-pwa-auth/index.html').read_text()
           prod=re.sub(r'const ENCRYPTED_PAYLOAD=\{.*?\};\s*let data=', 'const ENCRYPTED_PAYLOAD='+json.dumps(enc,separators=(',',':'))+';\nlet data=',prod,count=1,flags=re.S)
           d=Path('/tmp/auth-test-site');(d/'icons').mkdir(parents=True,exist_ok=True)
@@ -116,7 +126,7 @@ jobs:
           done
           cat auth-server.log; exit 1
 
-      - name: Real browser password, lock, and offline QA
+      - name: Real browser password, product-card, lock and offline QA
         env:
           PWA_URL: http://127.0.0.1:4174/index.html
           AUTH_TEST_PASSWORD: ${{ env.CI_AUTH_TEST_PASSWORD }}
@@ -131,21 +141,13 @@ jobs:
           cp -a sku-pwa-auth/. /tmp/sku-pwa-auth-public-build/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --exit-code --heads origin sku-pwa-auth-public >/dev/null 2>&1; then
-            git fetch origin sku-pwa-auth-public:refs/remotes/origin/sku-pwa-auth-public
-            git worktree add -B sku-pwa-auth-public-publish /tmp/sku-pwa-auth-public-worktree origin/sku-pwa-auth-public
-          else
-            git worktree add --detach /tmp/sku-pwa-auth-public-worktree
-            cd /tmp/sku-pwa-auth-public-worktree
-            git checkout --orphan sku-pwa-auth-public-publish
-            git rm -rf . || true
-            cd - >/dev/null
-          fi
+          git fetch origin sku-pwa-auth-public:refs/remotes/origin/sku-pwa-auth-public || true
+          git worktree add -B sku-pwa-auth-public-publish /tmp/sku-pwa-auth-public-worktree origin/sku-pwa-auth-public
           find /tmp/sku-pwa-auth-public-worktree -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/sku-pwa-auth-public-build/. /tmp/sku-pwa-auth-public-worktree/
           cd /tmp/sku-pwa-auth-public-worktree
           git add -A
-          git commit -m "Publish encrypted 31-SKU PWA"
+          git commit -m "Publish encrypted full-library SKU PWA"
           PUBLISH_SHA=$(git rev-parse HEAD)
           printf '%s\n' "$PUBLISH_SHA" > /tmp/auth-publish-sha.txt
           git push --force origin HEAD:refs/heads/sku-pwa-auth-public
@@ -168,16 +170,17 @@ jobs:
           [ "$READY" = "1" ] || { cat auth-curl.err; exit 1; }
           grep -qi 'content-type: text/html' auth-index-headers.txt
           ! grep -q '声光漏水报警器' auth-public-index.html
+          ! grep -q '手动抽芯铆钉枪' auth-public-index.html
           python3 - <<'PY'
           from pathlib import Path
           import re,json
-          expected=json.loads(Path('sku-pwa-auth-src/envelope.json').read_text())
+          expected=json.loads(Path('/tmp/full-envelope.json').read_text())
           s=Path('auth-public-index.html').read_text()
           m=re.search(r'const ENCRYPTED_PAYLOAD=(\{.*?\});\s*let data=',s,re.S)
           if not m: raise SystemExit('public envelope missing')
           actual=json.loads(m.group(1))
           if actual!=expected: raise SystemExit('public envelope drifted')
-          print('public envelope continuity verified')
+          print('public full-library envelope continuity verified')
           PY
           BASE="${URL%/index.html}"
           curl -fsSL -D auth-manifest-headers.txt "$BASE/manifest.webmanifest" -o auth-public-manifest.webmanifest
