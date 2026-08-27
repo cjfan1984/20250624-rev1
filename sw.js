@@ -1,5 +1,5 @@
-const CACHE='sku-decision-auth-v1-5';
 const BUILD_TOKEN=new URL(self.location.href).searchParams.get('v')||'v1-5';
+const CACHE=`sku-decision-auth-${BUILD_TOKEN}`;
 const BOOT_QUERY=encodeURIComponent(BUILD_TOKEN);
 const ASSETS=[`./index.html?_pwa=${BOOT_QUERY}`,`./manifest.webmanifest?_pwa=${BOOT_QUERY}`,'./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png'];
 
@@ -17,4 +17,4 @@ async function patchHtml(resp){
 
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',event=>{const r=event.request;if(r.method!=='GET')return;const u=new URL(r.url);if(u.origin!==self.location.origin)return;const isDocument=r.mode==='navigate'||u.pathname.endsWith('/index.html')||u.pathname.endsWith('/');event.respondWith((async()=>{try{let target=r;if(isDocument){const fresh=new URL(r.url);fresh.searchParams.set('_pwa',`${BUILD_TOKEN}-${Date.now()}`);target=fresh.toString();}const resp=await fetch(target,isDocument?{cache:'no-store'}:undefined);const patched=isDocument?await patchHtml(resp):resp;const copy=patched.clone();caches.open(CACHE).then(c=>c.put(r,copy));return patched;}catch(_){const cached=await caches.match(r)||await caches.match(ASSETS[0]);return cached?(isDocument?patchHtml(cached):cached):Response.error();}})());});
+self.addEventListener('fetch',event=>{const r=event.request;if(r.method!=='GET')return;const u=new URL(r.url);if(u.origin!==self.location.origin)return;const isDocument=r.mode==='navigate'||u.pathname.endsWith('/index.html')||u.pathname.endsWith('/');event.respondWith((async()=>{try{let target=r;if(isDocument){const fresh=new URL(r.url);fresh.searchParams.set('_pwa',`${BUILD_TOKEN}-${Date.now()}`);target=fresh.toString();}const resp=await fetch(target,isDocument?{cache:'no-store'}:undefined);if(!resp.ok)throw new Error(`HTTP ${resp.status}`);const patched=isDocument?await patchHtml(resp):resp;const copy=patched.clone();await caches.open(CACHE).then(c=>c.put(r,copy));return patched;}catch(_){const cached=isDocument?(await caches.match(ASSETS[0])||await caches.match(r)):await caches.match(r);return cached?(isDocument?patchHtml(cached):cached):Response.error();}})());});
