@@ -1,4 +1,4 @@
-name: SKU PWA QA and Deploy
+name: SKU PWA QA and CDN Publish
 
 on:
   push:
@@ -6,21 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: sku-pwa-pages
+  group: sku-pwa-cdn
   cancel-in-progress: true
 
 jobs:
-  qa-and-deploy:
+  qa-and-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,20 +42,6 @@ jobs:
           base64 -d sku-pwa-src/icon-192.b64 > sku-pwa/icons/icon-192.png
           base64 -d sku-pwa-src/icon-512.b64 > sku-pwa/icons/icon-512.png
           touch sku-pwa/.nojekyll
-          sha256sum sku-pwa/index.html | tee reconstructed-sha256.txt
-
-      - name: Upload reconstructed build evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: sku-pwa-reconstructed
-          path: |
-            sku-pwa/index.html
-            reconstructed-sha256.txt
-          retention-days: 2
-
-      - name: Enforce exact golden PWA hash
-        shell: bash
-        run: |
           echo "c9ec9fe3a1251b8856457de951d923cfba1d881b4910e35de3405dacd6ceb04c  sku-pwa/index.html" | sha256sum -c -
 
       - name: Verify frozen 31-SKU golden data
@@ -79,11 +60,11 @@ jobs:
           if digest != expected:
               raise SystemExit(f'Golden data changed: {digest}')
           data = json.loads(raw)
-          assert len(data) == 31, len(data)
+          assert len(data) == 31
           assert data[0]['sku'] == '声光漏水报警器'
           assert data[1]['sku'] == '3.6×150mm 100条黑色'
           assert max(data, key=lambda x:x['profit'])['sku'] == '手动抽芯铆钉枪'
-          print(json.dumps({'goldenHash':digest,'skuCount':len(data),'first':data[0]['sku']}, ensure_ascii=False))
+          print(json.dumps({'goldenHash':digest,'skuCount':31}, ensure_ascii=False))
           PY
 
       - name: Install Playwright Chromium
@@ -91,7 +72,7 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
 
-      - name: Start PWA test server
+      - name: Start local PWA test server
         shell: bash
         run: |
           nohup python3 -m http.server 4173 --directory sku-pwa > pwa-server.log 2>&1 &
@@ -105,67 +86,70 @@ jobs:
       - name: Real mobile browser and offline QA
         env:
           PWA_URL: http://127.0.0.1:4173/
-        run: node tests-pwa/pwa-browser.mjs | tee pwa-qa.json
+        run: node tests-pwa/pwa-browser.mjs | tee pwa-local-qa.json
 
-      - name: Upload browser QA evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: sku-pwa-qa
-          path: |
-            pwa-mobile.png
-            pwa-desktop.png
-            pwa-qa.json
-            pwa-server.log
-          retention-days: 7
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: sku-pwa
-
-      - name: Deploy GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Verify deployed public PWA
+      - name: Publish verified build to sku-pwa-public branch
         shell: bash
-        env:
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           set -euo pipefail
-          printf '%s\n' "$PAGE_URL" | tee pwa-url.txt
-          READY=0
-          for i in {1..60}; do
-            if curl -fsSL --connect-timeout 8 "$PAGE_URL" > deployed.html 2>deploy.err; then
-              if grep -q '31 SKU 选品决策驾驶舱' deployed.html; then
-                READY=1
-                break
+          rm -rf /tmp/sku-pwa-public
+          mkdir -p /tmp/sku-pwa-public
+          cp -a sku-pwa/. /tmp/sku-pwa-public/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan sku-pwa-public-work
+          git rm -rf .
+          cp -a /tmp/sku-pwa-public/. .
+          git add -A
+          git commit -m "Publish verified 31-SKU PWA"
+          git push --force origin HEAD:refs/heads/sku-pwa-public
+
+      - name: Verify public CDN PWA with real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          CANDIDATES=(
+            "https://cdn.jsdelivr.net/gh/${REPO}@sku-pwa-public/index.html"
+            "https://raw.githack.com/${REPO}/sku-pwa-public/index.html"
+          )
+          : > cdn-attempts.log
+          OK=0
+          for URL in "${CANDIDATES[@]}"; do
+            echo "Testing $URL" | tee -a cdn-attempts.log
+            READY=0
+            for i in {1..36}; do
+              if curl -fsSL --connect-timeout 8 "$URL" > public-index.html 2>public-curl.err; then
+                if grep -q '31 SKU 选品决策驾驶舱' public-index.html; then READY=1; break; fi
               fi
+              sleep 5
+            done
+            if [ "$READY" != "1" ]; then
+              cat public-curl.err >> cdn-attempts.log || true
+              continue
             fi
-            sleep 5
+            if PWA_URL="$URL" node tests-pwa/pwa-browser.mjs > pwa-public-qa.json 2>pwa-public-qa.err; then
+              echo "$URL" | tee pwa-url.txt
+              cat pwa-public-qa.json
+              OK=1
+              break
+            fi
+            cat pwa-public-qa.err >> cdn-attempts.log || true
           done
-          if [ "$READY" != "1" ]; then
-            cat deploy.err || true
+          if [ "$OK" != "1" ]; then
+            cat cdn-attempts.log
             exit 1
           fi
-          BASE="${PAGE_URL%/}"
-          curl -fsSL "$BASE/manifest.webmanifest" > deployed-manifest.json
-          grep -q 'SKU决策' deployed-manifest.json
-          curl -fsSL "$BASE/sw.js" > deployed-sw.js
-          grep -q 'sku-decision-v1' deployed-sw.js
-          echo "Public PWA verified: $PAGE_URL"
 
-      - name: Upload deployed URL
+      - name: Upload final PWA evidence
         uses: actions/upload-artifact@v4
         with:
-          name: sku-pwa-url
+          name: sku-pwa-final
           path: |
             pwa-url.txt
-            deployed-manifest.json
-            deployed-sw.js
+            pwa-local-qa.json
+            pwa-public-qa.json
+            pwa-mobile.png
+            pwa-desktop.png
+            cdn-attempts.log
           retention-days: 7
