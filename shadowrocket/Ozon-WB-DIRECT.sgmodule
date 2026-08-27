@@ -1,0 +1,47 @@
+#!name=Ozon & WB 直连分流
+#!desc=仅将 Ozon / Wildberries 及必要静态资源强制直连；其他流量继续按原 Shadowrocket 配置。更新：2026-08-27
+#!category=Routing
+
+[Rule]
+# --- Ozon ---
+DOMAIN-SUFFIX,ozon.ru,DIRECT
+DOMAIN-SUFFIX,ozone.ru,DIRECT
+DOMAIN-SUFFIX,ozonusercontent.com,DIRECT
+DOMAIN-SUFFIX,o3.ru,DIRECT
+DOMAIN-SUFFIX,o3t.ru,DIRECT
+DOMAIN-SUFFIX,ozon.tech,DIRECT
+DOMAIN-SUFFIX,ozonpartners.ru,DIRECT
+
+# --- Wildberries ---
+DOMAIN-SUFFIX,wildberries.ru,DIRECT
+DOMAIN-SUFFIX,wb.ru,DIRECT
+DOMAIN-SUFFIX,wbbasket.ru,DIRECT
+DOMAIN-SUFFIX,wbstatic.net,DIRECT
+DOMAIN-SUFFIX,paywb.com,DIRECT
+
+[Host]
+# Direct traffic should use the iPhone/system DNS rather than a proxy-side resolver.
+ozon.ru = server:system
+*.ozon.ru = server:system
+ozone.ru = server:system
+*.ozone.ru = server:system
+ozonusercontent.com = server:system
+*.ozonusercontent.com = server:system
+o3.ru = server:system
+*.o3.ru = server:system
+o3t.ru = server:system
+*.o3t.ru = server:system
+ozon.tech = server:system
+*.ozon.tech = server:system
+ozonpartners.ru = server:system
+*.ozonpartners.ru = server:system
+wildberries.ru = server:system
+*.wildberries.ru = server:system
+wb.ru = server:system
+*.wb.ru = server:system
+wbbasket.ru = server:system
+*.wbbasket.ru = server:system
+wbstatic.net = server:system
+*.wbstatic.net = server:system
+paywb.com = server:system
+*.paywb.com = server:system
