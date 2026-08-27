@@ -125,3 +125,5 @@ jobs:
             /tmp/new-sha.txt
             /tmp/rotation-done.json
           retention-days: 7
+
+# Manual one-time rotation trigger: 2026-08-27
