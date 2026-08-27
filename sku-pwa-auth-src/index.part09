@@ -1,0 +1,89 @@
+t=`${i+1}｜${d.sku}｜${pct(d.margin)}`;s.appendChild(o)});
+ if(current && [...s.options].some(o=>o.value===current))s.value=current; else s.value=sorted[0].rank;
+ s.onchange=()=>renderDetail(Number(s.value));
+}
+function renderDetail(id){
+ const d=data.find(x=>x.rank===id)||sorted[0]; const [bt,bc]=badge(d);
+ const monthlyMid=(d.monthProfit[0]+d.monthProfit[1])/2;
+ document.getElementById('detail').innerHTML=`<div class="card">
+ <div class="titleline"><div><h2>${d.sku}</h2><div class="family">${d.family}｜${d.action}</div></div><span class="badge ${bc}">${bt}</span></div>
+ <div class="grid">
+  <div class="metric"><small>目标售价 / 当前Ozon价</small><strong>${rub(d.price)}</strong><div class="sub">当前用于跨境利润模型</div></div>
+  <div class="metric"><small>目标成本价</small><strong>${money(d.targetCost)}</strong><div class="sub">15%净利率采购上限</div></div>
+  <div class="metric"><small>实际/核价成本</small><strong>${money(d.cost)}</strong><div class="sub">公开价/条件价/情景价，需看核价状态</div></div>
+  <div class="metric"><small>平台费用</small><strong>${money(d.fee)}</strong><div class="sub">按Ozon 21.5%模型</div></div>
+  <div class="metric"><small>跨境运费</small><strong>${money(d.freight)}</strong><div class="sub">CEL：${d.cel.toFixed(2)} RUB</div></div>
+  <div class="metric"><small>单件净利润</small><strong class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</strong><div class="sub">当前跨境模型</div></div>
+  <div class="metric"><small>净利率</small><strong class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</strong><div class="sub">准入线15%</div></div>
+  <div class="metric"><small>预计月总单量</small><strong>${range(d.totalForecast)}单</strong><div class="sub">Ozon ${range(d.ozForecast)} + WB ${range(d.wbForecast)}</div></div>
+  <div class="metric"><small>月利润总额（代理）</small><strong class="${monthlyMid>=0?'pos':'neg'}">${money(d.monthProfit[0])}～${money(d.monthProfit[1])}</strong><div class="sub">暂用Ozon单件利润代理WB</div></div>
+  <div class="metric"><small>毛重</small><strong>${d.weight.toFixed(3)}kg</strong><div class="sub">影响CEL运费</div></div>
+  <div class="metric"><small>Ozon市场28天销量</small><strong>${d.ozonUnits.toLocaleString()}</strong><div class="sub">竞品/产品族证据</div></div>
+  <div class="metric"><small>WB需求证据</small><strong>${d.wbOrders?d.wbOrders.toLocaleString():'待补'}</strong><div class="sub">30天搜索词下单，不等于竞品SKU销量</div></div>
+ </div>
+ <div class="spec"><b>产品规格：</b>${d.spec}</div>
+ <div class="links">
+   <a href="${d.links['1688']}" target="_blank" rel="noopener">1688货源</a>
+   <a href="${d.links.taobao}" target="_blank" rel="noopener">淘宝货源</a>
+   <a href="${d.links.pdd}" target="_blank" rel="noopener">拼多多货源</a>
+   <a href="${d.links.wb}" target="_blank" rel="noopener">WB对标竞品</a>
+   <a href="${d.links.ozon}" target="_blank" rel="noopener">Ozon对标竞品</a>
+ </div>
+ <div class="note">链接规则：若精确商品页尚未核实，按钮进入该平台的同规格搜索结果，不留空、不冒充精确货源。月利润总额目前为双平台代理估算；WB真实佣金与跨境物流闭环后会替换为正式值。</div>
+ </div>`;
+}
+function renderTable(){
+ const b=document.getElementById('tbody'); b.innerHTML='';
+ sorted.forEach((d,i)=>{const tr=document.createElement('tr');tr.onclick=()=>{document.getElementById('skuSelect').value=d.rank;renderDetail(d.rank);window.scrollTo({top:0,behavior:'smooth'})};
+ tr.innerHTML=`<td>${i+1}</td><td>${d.sku}</td><td>${rub(d.price)}</td><td>${money(d.cost)}</td><td>${money(d.targetCost)}</td><td class="${d.profit>=0?'pos':'neg'}">${money(d.profit)}</td><td class="${d.margin>=15?'pos':'neg'}">${pct(d.margin)}</td><td>${range(d.totalForecast)}</td><td class="${d.monthProfit[1]>=0?'pos':'neg'}">${money(d.monthProfit[0])}～${money(d.monthProfit[1])}</td>`; b.appendChild(tr);});
+}
+function sortBy(k){
+ if(k==='margin')sorted.sort((a,b)=>b.margin-a.margin);
+ if(k==='profit')sorted.sort((a,b)=>b.profit-a.profit);
+ if(k==='month')sorted.sort((a,b)=>((b.monthProfit[0]+b.monthProfit[1])/2)-((a.monthProfit[0]+a.monthProfit[1])/2));
+ renderSelect(); renderTable(); renderDetail(Number(document.getElementById('skuSelect').value));
+}
+const b64bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function decryptPayload(password){
+ const te=new TextEncoder(), td=new TextDecoder();
+ const keyMaterial=await crypto.subtle.importKey('raw',te.encode(password),'PBKDF2',false,['deriveKey']);
+ const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64bytes(ENCRYPTED_PAYLOAD.salt),iterations:ENCRYPTED_PAYLOAD.iterations,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['decrypt']);
+ const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64bytes(ENCRYPTED_PAYLOAD.iv),additionalData:te.encode(ENCRYPTED_PAYLOAD.aad)},key,b64bytes(ENCRYPTED_PAYLOAD.cipher));
+ return JSON.parse(td.decode(plain));
+}
+async function unlockWithPassword(password){
+ const btn=document.getElementById('loginBtn'), err=document.getElementById('authError');
+ btn.disabled=true; btn.textContent='验证中…'; err.textContent='';
+ try{
+   const decoded=await decryptPayload(password);
+   if(!Array.isArray(decoded)||decoded.length!==31)throw new Error('payload');
+   data=decoded; sorted=[...data];
+   document.getElementById('authPassword').value='';
+   document.getElementById('authScreen').hidden=true;
+   document.getElementById('appRoot').hidden=false;
+   sortBy('margin');
+   return true;
+ }catch(e){
+   data=[]; sorted=[];
+   err.textContent='密码错误，请重新输入。';
+   return false;
+ }finally{btn.disabled=false;btn.textContent='登录';}
+}
+function lockApp(){
+ data=[];sorted=[];
+ document.getElementById('skuSelect').innerHTML='';
+ document.getElementById('detail').innerHTML='';
+ document.getElementById('tbody').innerHTML='';
+ document.getElementById('appRoot').hidden=true;
+ document.getElementById('authScreen').hidden=false;
+ const p=document.getElementById('authPassword');p.value='';p.focus();
+}
+document.getElementById('authForm').addEventListener('submit',async e=>{e.preventDefault();await unlockWithPassword(document.getElementById('authPassword').value)});
+document.getElementById('lockBtn').addEventListener('click',lockApp);
+setTimeout(()=>document.getElementById('authPassword').focus(),100);
+// PWA registration. Does not change SKU logic.
+if ('serviceWorker' in navigator) { window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+const standalone=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+if(isIOS && !standalone && !localStorage.getItem('pwaTipHidden')){ setTimeout(()=>{const el=document.getElementById('installTip');if(el)el.style.display='block'},1200); }
+</script></body></html>
