@@ -2,7 +2,7 @@
   "name": "31 SKU 选品决策驾驶舱",
   "short_name": "SKU决策",
   "description": "31 SKU 选品交互式下拉决策卡",
-  "start_url": "./",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f5f7fb",
