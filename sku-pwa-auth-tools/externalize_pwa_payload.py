@@ -29,6 +29,7 @@ async function loadExternalEncryptedPayload(){
     if(env.records!==meta.records)throw new Error(`record mismatch ${env.records}/${meta.records}`);
     ENCRYPTED_PAYLOAD=env;
     PWA_DATA_VERSION=meta;
+    window.PWA_DATA_VERSION=meta;
     if(loginBtn){loginBtn.disabled=false;loginBtn.textContent='登录';}
     if(authError)authError.textContent='';
     return env;
@@ -41,18 +42,13 @@ async function loadExternalEncryptedPayload(){
 }
 const authFormForData=document.getElementById('authForm');
 if(authFormForData){authFormForData.addEventListener('submit',event=>{if(!ENCRYPTED_PAYLOAD){event.preventDefault();event.stopImmediatePropagation();}},true);}
-PWA_DATA_READY=loadExternalEncryptedPayload();'''
+PWA_DATA_READY=loadExternalEncryptedPayload();
+window.PWA_DATA_READY=PWA_DATA_READY;'''
 
 
-def main() -> None:
-    p=argparse.ArgumentParser(description='Externalize encrypted PWA dataset from HTML without changing crypto/login logic.')
-    p.add_argument('--index',type=Path,required=True)
-    p.add_argument('--envelope',type=Path,required=True)
-    p.add_argument('--data-out',type=Path,required=True)
-    p.add_argument('--version-out',type=Path,required=True)
-    args=p.parse_args()
-    html=args.index.read_text(encoding='utf-8')
-    env=json.loads(args.envelope.read_text(encoding='utf-8'))
+def externalize(index: Path, envelope: Path, data_out: Path, version_out: Path) -> dict:
+    html=index.read_text(encoding='utf-8')
+    env=json.loads(envelope.read_text(encoding='utf-8'))
     if env.get('kind')!='SKU-PWA-HYBRID-ENVELOPE':
         raise SystemExit('only hybrid envelope can be externalized')
     if not isinstance(env.get('records'),int) or env['records']<1:
@@ -73,12 +69,22 @@ def main() -> None:
         raise SystemExit('embedded ENCRYPTED_PAYLOAD marker not found exactly once')
     if compact in out or '"kind":"SKU-PWA-HYBRID-ENVELOPE"' in out:
         raise SystemExit('encrypted payload still embedded in HTML')
-    args.data_out.parent.mkdir(parents=True,exist_ok=True)
-    args.version_out.parent.mkdir(parents=True,exist_ok=True)
-    args.data_out.write_text(compact,encoding='utf-8')
-    args.version_out.write_text(json.dumps(version,ensure_ascii=False,indent=2),encoding='utf-8')
-    args.index.write_text(out,encoding='utf-8')
-    print(json.dumps({'records':env['records'],'version':version['version'],'envelopeSha256':sha},separators=(',',':')))
+    data_out.parent.mkdir(parents=True,exist_ok=True)
+    version_out.parent.mkdir(parents=True,exist_ok=True)
+    data_out.write_text(compact,encoding='utf-8')
+    version_out.write_text(json.dumps(version,ensure_ascii=False,indent=2),encoding='utf-8')
+    index.write_text(out,encoding='utf-8')
+    return {'records':env['records'],'version':version['version'],'envelopeSha256':sha}
+
+
+def main() -> None:
+    p=argparse.ArgumentParser(description='Externalize encrypted PWA dataset from HTML without changing crypto/login logic.')
+    p.add_argument('--index',type=Path,required=True)
+    p.add_argument('--envelope',type=Path,required=True)
+    p.add_argument('--data-out',type=Path,required=True)
+    p.add_argument('--version-out',type=Path,required=True)
+    args=p.parse_args()
+    print(json.dumps(externalize(args.index,args.envelope,args.data_out,args.version_out),separators=(',',':')))
 
 if __name__=='__main__':
     main()
