@@ -1,5 +1,5 @@
-#!name=仅 ChatGPT/OpenAI 走代理
-#!desc=只有 ChatGPT / OpenAI 及其必要登录、静态资源、验证依赖走 PROXY；所有其他流量 FINAL,DIRECT。适合“小火箭只给 GPT 用”的场景。更新：2026-08-27
+#!name=ChatGPT + Google + YouTube 走代理
+#!desc=ChatGPT/OpenAI、Google、YouTube 及必要依赖走 PROXY；其余流量 FINAL,DIRECT。适合小火箭只服务境外受限服务的场景。更新：2026-08-27
 #!category=Routing
 
 [Rule]
@@ -17,7 +17,7 @@ DOMAIN-SUFFIX,workoscdn.com,PROXY
 DOMAIN,challenges.cloudflare.com,PROXY
 DOMAIN,ct.sendgrid.net,PROXY
 
-# --- ChatGPT support / telemetry dependencies from OpenAI network allowlist ---
+# --- ChatGPT support / telemetry dependencies ---
 DOMAIN-SUFFIX,intercom.io,PROXY
 DOMAIN-SUFFIX,intercomcdn.com,PROXY
 DOMAIN,js.stripe.com,PROXY
@@ -25,5 +25,23 @@ DOMAIN,o207216.ingest.sentry.io,PROXY
 DOMAIN,o33249.ingest.sentry.io,PROXY
 DOMAIN,rum.browser-intake-datadoghq.com,PROXY
 
-# Everything else — including Ozon, WB, banking, shopping and normal apps — uses the real iPhone network.
+# --- Google: Search / Gmail / Drive / Docs / Maps web / account / APIs / static assets ---
+DOMAIN-SUFFIX,google.com,PROXY
+DOMAIN-SUFFIX,google.com.hk,PROXY
+DOMAIN-SUFFIX,google.cn,PROXY
+DOMAIN-SUFFIX,googleapis.com,PROXY
+DOMAIN-SUFFIX,gstatic.com,PROXY
+DOMAIN-SUFFIX,googleusercontent.com,PROXY
+DOMAIN-SUFFIX,ggpht.com,PROXY
+DOMAIN-SUFFIX,gmail.com,PROXY
+DOMAIN-SUFFIX,googlemail.com,PROXY
+
+# --- YouTube ---
+DOMAIN-SUFFIX,youtube.com,PROXY
+DOMAIN-SUFFIX,youtu.be,PROXY
+DOMAIN-SUFFIX,googlevideo.com,PROXY
+DOMAIN-SUFFIX,ytimg.com,PROXY
+DOMAIN-SUFFIX,youtube-nocookie.com,PROXY
+
+# Everything else — Ozon, WB, banking, shopping, WeChat and normal apps — uses the real iPhone network.
 FINAL,DIRECT
