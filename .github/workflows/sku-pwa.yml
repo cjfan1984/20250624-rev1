@@ -77,7 +77,7 @@ jobs:
         run: |
           nohup python3 -m http.server 4173 --directory sku-pwa > pwa-server.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            if curl -fsS http://127.0.0.1:4173/index.html >/dev/null; then exit 0; fi
             sleep 1
           done
           cat pwa-server.log
@@ -85,7 +85,7 @@ jobs:
 
       - name: Real mobile browser and offline QA
         env:
-          PWA_URL: http://127.0.0.1:4173/
+          PWA_URL: http://127.0.0.1:4173/index.html
         run: node tests-pwa/pwa-browser.mjs | tee pwa-local-qa.json
 
       - name: Publish verified build to clean sku-pwa-public branch
@@ -104,44 +104,41 @@ jobs:
           cd /tmp/sku-pwa-public-worktree
           git add -A
           git commit -m "Publish verified 31-SKU PWA" || true
+          PUBLISH_SHA=$(git rev-parse HEAD)
+          printf '%s\n' "$PUBLISH_SHA" > /tmp/publish-sha.txt
           git push --force origin HEAD:refs/heads/sku-pwa-public
+          echo "Published commit: $PUBLISH_SHA"
 
-      - name: Verify public CDN PWA with real browser
+      - name: Verify immutable Statically PWA with real browser
         shell: bash
         run: |
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
-          CANDIDATES=(
-            "https://cdn.jsdelivr.net/gh/${REPO}@sku-pwa-public/index.html"
-            "https://raw.githack.com/${REPO}/sku-pwa-public/index.html"
-          )
-          : > cdn-attempts.log
-          OK=0
-          for URL in "${CANDIDATES[@]}"; do
-            echo "Testing $URL" | tee -a cdn-attempts.log
-            READY=0
-            for i in {1..36}; do
-              if curl -fsSL --connect-timeout 8 "$URL" > public-index.html 2>public-curl.err; then
-                if grep -q '31 SKU 选品决策驾驶舱' public-index.html; then READY=1; break; fi
-              fi
-              sleep 5
-            done
-            if [ "$READY" != "1" ]; then
-              cat public-curl.err >> cdn-attempts.log || true
-              continue
+          SHA=$(cat /tmp/publish-sha.txt)
+          URL="https://cdn.statically.io/gh/${REPO}@${SHA}/index.html"
+          echo "$URL" | tee pwa-url.txt
+          READY=0
+          for i in {1..36}; do
+            if curl -fsSL --connect-timeout 8 -D public-headers.txt "$URL" > public-index.html 2>public-curl.err; then
+              if grep -q '31 SKU 选品决策驾驶舱' public-index.html; then READY=1; break; fi
             fi
-            if PWA_URL="$URL" node tests-pwa/pwa-browser.mjs > pwa-public-qa.json 2>pwa-public-qa.err; then
-              echo "$URL" | tee pwa-url.txt
-              cat pwa-public-qa.json
-              OK=1
-              break
-            fi
-            cat pwa-public-qa.err >> cdn-attempts.log || true
+            sleep 5
           done
-          if [ "$OK" != "1" ]; then
-            cat cdn-attempts.log
+          if [ "$READY" != "1" ]; then
+            cat public-curl.err || true
+            cat public-headers.txt || true
             exit 1
           fi
+          echo '--- index response headers ---'
+          cat public-headers.txt
+          BASE="${URL%/index.html}"
+          curl -fsSL -D manifest-headers.txt "$BASE/manifest.webmanifest" -o public-manifest.webmanifest
+          curl -fsSL -D sw-headers.txt "$BASE/sw.js" -o public-sw.js
+          echo '--- manifest response headers ---'
+          cat manifest-headers.txt
+          echo '--- sw response headers ---'
+          cat sw-headers.txt
+          PWA_URL="$URL" node tests-pwa/pwa-browser.mjs | tee pwa-public-qa.json
 
       - name: Upload final PWA evidence
         uses: actions/upload-artifact@v4
@@ -153,5 +150,7 @@ jobs:
             pwa-public-qa.json
             pwa-mobile.png
             pwa-desktop.png
-            cdn-attempts.log
+            public-headers.txt
+            manifest-headers.txt
+            sw-headers.txt
           retention-days: 7
