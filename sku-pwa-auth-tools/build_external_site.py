@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import argparse, base64, json, re, shutil, sys
+import argparse, base64, hashlib, json, re, shutil, sys
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -11,9 +11,10 @@ from externalize_pwa_payload import externalize
 
 INDEX_PARTS=[f'index.part{i:02d}' for i in range(1,10)]
 ENV_PARTS=['full-envelope.part01','full-envelope.part02','full-envelope.part03','full-envelope.part04a','full-envelope.part04b']
+DYNAMIC_DATA_PARTS=[f'sku-data.part{i:02d}' for i in range(1,10)]
 
 def build(root:Path,out:Path)->dict:
-    src=root/'sku-pwa-auth-src'; icon_src=root/'sku-pwa-src'
+    src=root/'sku-pwa-auth-src'; icon_src=root/'sku-pwa-src'; data_src=root/'sku-pwa-auth-data'
     out.mkdir(parents=True,exist_ok=True);(out/'icons').mkdir(exist_ok=True)
     html=''.join((src/p).read_text(encoding='utf-8') for p in INDEX_PARTS)
     env_text=''.join((src/p).read_text(encoding='utf-8') for p in ENV_PARTS)
@@ -35,6 +36,26 @@ def build(root:Path,out:Path)->dict:
     env_tmp=out/'.build-envelope.json';env_tmp.write_text(literal,encoding='utf-8')
     meta=externalize(index,env_tmp,out/'sku-data.enc.json',out/'pwa-data-version.json')
     env_tmp.unlink(missing_ok=True)
+
+    # After the migration shell has been externalized, prefer the new data-only fragments.
+    # This keeps HTML/UI stable while daily SKU changes touch only encrypted data + version metadata.
+    if data_src.exists() and all((data_src/p).exists() for p in DYNAMIC_DATA_PARTS):
+        dynamic_text=''.join((data_src/p).read_text(encoding='utf-8') for p in DYNAMIC_DATA_PARTS)
+        dynamic=json.loads(dynamic_text)
+        if dynamic.get('kind')!='SKU-PWA-HYBRID-ENVELOPE':raise SystemExit('dynamic data envelope invalid')
+        if dynamic.get('keyWrapping',{}).get('publicKeyFingerprintSha256')!=fp:raise SystemExit('dynamic data key fingerprint mismatch')
+        version_path=data_src/'pwa-data-version.json'
+        if not version_path.exists():raise SystemExit('dynamic pwa-data-version.json missing')
+        version=json.loads(version_path.read_text(encoding='utf-8'))
+        if dynamic.get('records')!=version.get('records'):raise SystemExit('dynamic data/version record mismatch')
+        dynamic_sha=hashlib.sha256(dynamic_text.encode('utf-8')).hexdigest()
+        if version.get('envelopeSha256')!=dynamic_sha:raise SystemExit('dynamic envelope SHA mismatch')
+        (out/'sku-data.enc.json').write_text(dynamic_text,encoding='utf-8')
+        (out/'pwa-data-version.json').write_text(json.dumps(version,ensure_ascii=False,indent=2),encoding='utf-8')
+        meta={'records':dynamic['records'],'version':version['version'],'envelopeSha256':dynamic_sha,'dataMode':'dynamic-fragments'}
+    else:
+        meta={**meta,'dataMode':'legacy-envelope-migration'}
+
     shutil.copy2(src/'manifest.webmanifest',out/'manifest.webmanifest')
     sw=(src/'sw.external.js').read_text(encoding='utf-8')
     old="const obs=new MutationObserver(()=>{ensureAutomationCenter();ensureChatGptBridge();renderAutomationCenter();});"
