@@ -1,0 +1,178 @@
+name: SKU PWA Auth QA and Publish
+
+on:
+  push:
+    branches: [sku-pwa-auth-test]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sku-pwa-auth-cdn
+  cancel-in-progress: true
+
+env:
+  CI_AUTH_TEST_PASSWORD: "CI-Test#SKU31-2026"
+
+jobs:
+  qa-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reconstruct encrypted production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sku-pwa-auth/icons
+          cat \
+            sku-pwa-auth-src/index.part01 \
+            sku-pwa-auth-src/index.part02 \
+            sku-pwa-auth-src/index.part03 \
+            sku-pwa-auth-src/index.part04 \
+            sku-pwa-auth-src/index.part05 \
+            sku-pwa-auth-src/index.part06 \
+            sku-pwa-auth-src/index.part07 \
+            sku-pwa-auth-src/index.part08 \
+            sku-pwa-auth-src/index.part09 \
+            > sku-pwa-auth/index.html
+          cp sku-pwa-auth-src/manifest.webmanifest sku-pwa-auth/manifest.webmanifest
+          cp sku-pwa-auth-src/sw.js sku-pwa-auth/sw.js
+          base64 -d sku-pwa-src/icon-180.b64 > sku-pwa-auth/icons/icon-180.png
+          base64 -d sku-pwa-src/icon-192.b64 > sku-pwa-auth/icons/icon-192.png
+          base64 -d sku-pwa-src/icon-512.b64 > sku-pwa-auth/icons/icon-512.png
+          touch sku-pwa-auth/.nojekyll
+          cd sku-pwa-auth
+          sha256sum -c ../sku-pwa-auth-src/checksums.txt
+
+      - name: Verify encrypted-at-rest source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'ENCRYPTED_PAYLOAD' sku-pwa-auth/index.html
+          ! grep -q '声光漏水报警器' sku-pwa-auth/index.html
+          ! grep -q '手动抽芯铆钉枪' sku-pwa-auth/index.html
+          grep -q 'authScreen' sku-pwa-auth/index.html
+          grep -q 'decryptPayload' sku-pwa-auth/index.html
+
+      - name: Build CI-only decryptable auth test site
+        shell: bash
+        run: |
+          python3 -m pip install --quiet cryptography
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json,base64,os
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          from cryptography.hazmat.primitives import hashes
+          # Reconstruct old already-public V1 only for ephemeral CI auth testing.
+          old=''.join(Path(f'sku-pwa-src/index.part{i:02d}').read_text() for i in range(1,7))
+          m=re.search(r'const data=(\[.*?\]);\s*let sorted=',old,re.S)
+          raw=m.group(1)
+          password=os.environ['CI_AUTH_TEST_PASSWORD'].encode()
+          salt=os.urandom(16);iv=os.urandom(12);iterations=310000;aad=b'SKU31-V1.1'
+          key=PBKDF2HMAC(algorithm=hashes.SHA256(),length=32,salt=salt,iterations=iterations).derive(password)
+          cipher=AESGCM(key).encrypt(iv,raw.encode(),aad)
+          enc={'salt':base64.b64encode(salt).decode(),'iv':base64.b64encode(iv).decode(),'cipher':base64.b64encode(cipher).decode(),'iterations':iterations,'aad':'SKU31-V1.1'}
+          prod=Path('sku-pwa-auth/index.html').read_text()
+          prod=re.sub(r'const ENCRYPTED_PAYLOAD=\{.*?\};\nlet data=', 'const ENCRYPTED_PAYLOAD='+json.dumps(enc,separators=(',',':'))+';\nlet data=',prod,count=1,flags=re.S)
+          d=Path('/tmp/auth-test-site');(d/'icons').mkdir(parents=True,exist_ok=True)
+          (d/'index.html').write_text(prod)
+          for f in ['manifest.webmanifest','sw.js']:(d/f).write_bytes(Path('sku-pwa-auth',f).read_bytes())
+          for f in ['icon-180.png','icon-192.png','icon-512.png']:(d/'icons'/f).write_bytes(Path('sku-pwa-auth/icons',f).read_bytes())
+          PY
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Start CI auth test server
+        shell: bash
+        run: |
+          nohup python3 -m http.server 4174 --directory /tmp/auth-test-site > auth-server.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4174/index.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat auth-server.log; exit 1
+
+      - name: Real browser password, lock, and offline QA
+        env:
+          PWA_URL: http://127.0.0.1:4174/index.html
+          AUTH_TEST_PASSWORD: ${{ env.CI_AUTH_TEST_PASSWORD }}
+        run: node tests-pwa-auth/auth-browser.mjs | tee auth-ci-qa.json
+
+      - name: Publish production encrypted build to clean branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sku-pwa-auth-public-build /tmp/sku-pwa-auth-public-worktree
+          mkdir -p /tmp/sku-pwa-auth-public-build
+          cp -a sku-pwa-auth/. /tmp/sku-pwa-auth-public-build/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin sku-pwa-auth-public >/dev/null 2>&1; then
+            git fetch origin sku-pwa-auth-public:refs/remotes/origin/sku-pwa-auth-public
+            git worktree add -B sku-pwa-auth-public-publish /tmp/sku-pwa-auth-public-worktree origin/sku-pwa-auth-public
+          else
+            git worktree add --detach /tmp/sku-pwa-auth-public-worktree
+            cd /tmp/sku-pwa-auth-public-worktree
+            git checkout --orphan sku-pwa-auth-public-publish
+            git rm -rf . || true
+            cd - >/dev/null
+          fi
+          find /tmp/sku-pwa-auth-public-worktree -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/sku-pwa-auth-public-build/. /tmp/sku-pwa-auth-public-worktree/
+          cd /tmp/sku-pwa-auth-public-worktree
+          git add -A
+          git commit -m "Publish encrypted 31-SKU PWA"
+          PUBLISH_SHA=$(git rev-parse HEAD)
+          printf '%s\n' "$PUBLISH_SHA" > /tmp/auth-publish-sha.txt
+          git push --force origin HEAD:refs/heads/sku-pwa-auth-public
+          echo "Published auth commit: $PUBLISH_SHA"
+
+      - name: Verify public encrypted PWA lock screen
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA=$(cat /tmp/auth-publish-sha.txt)
+          URL="https://cdn.githubraw.com/${GITHUB_REPOSITORY}/${SHA}/index.html"
+          echo "$URL" | tee auth-pwa-url.txt
+          READY=0
+          for i in {1..36}; do
+            if curl -fsSL --connect-timeout 8 -D auth-index-headers.txt "$URL" > auth-public-index.html 2>auth-curl.err; then
+              if grep -q 'SKU 选品决策驾驶舱' auth-public-index.html; then READY=1; break; fi
+            fi
+            sleep 5
+          done
+          [ "$READY" = "1" ] || { cat auth-curl.err; exit 1; }
+          grep -qi 'content-type: text/html' auth-index-headers.txt
+          ! grep -q '声光漏水报警器' auth-public-index.html
+          BASE="${URL%/index.html}"
+          curl -fsSL -D auth-manifest-headers.txt "$BASE/manifest.webmanifest" -o auth-public-manifest.webmanifest
+          curl -fsSL -D auth-sw-headers.txt "$BASE/sw.js" -o auth-public-sw.js
+          grep -qi 'application/manifest' auth-manifest-headers.txt
+          grep -qi 'application/javascript' auth-sw-headers.txt
+          PWA_URL="$URL" node tests-pwa-auth/auth-public-browser.mjs | tee auth-public-qa.json
+
+      - name: Upload auth PWA evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sku-pwa-auth-final
+          path: |
+            auth-pwa-url.txt
+            auth-ci-qa.json
+            auth-public-qa.json
+            auth-login-mobile.png
+            auth-app-mobile.png
+            auth-public-login.png
+            auth-index-headers.txt
+            auth-manifest-headers.txt
+            auth-sw-headers.txt
+          retention-days: 7
