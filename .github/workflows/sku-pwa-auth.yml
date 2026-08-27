@@ -60,45 +60,8 @@ jobs:
           literal=json.dumps(env,separators=(',',':'))
           out,n=re.subn(r'const ENCRYPTED_PAYLOAD=\{.*?\};\s*let data=', 'const ENCRYPTED_PAYLOAD='+literal+';\nlet data=', s, count=1, flags=re.S)
           if n!=1: raise SystemExit('payload overlay failed')
-
-          # Product-card terminology is part of the published UI contract.
-          out=out.replace('单项完整决策卡','产品卡').replace('单项决策卡','产品卡')
-
-          # Always ship a manual refresh control next to the lock button.
-          refresh_button='''<button id="refreshBtn" type="button" onclick="manualRefresh()" title="强制获取服务器最新版本" style="float:right;margin-right:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.10);color:white;border-radius:10px;padding:7px 10px;font-size:12px;font-weight:700;min-height:38px;cursor:pointer">↻ 人工刷新</button>'''
-          anchor='<button id="lockBtn" class="lock-btn" type="button">🔒 锁定</button>'
-          if 'id="refreshBtn"' not in out:
-              if anchor not in out: raise SystemExit('lock button anchor missing')
-              out=out.replace(anchor, anchor+'\n'+refresh_button, 1)
-
-          refresh_js=r'''
-async function manualRefresh(){
- const btn=document.getElementById('refreshBtn');
- if(btn){btn.disabled=true;btn.textContent='刷新中…';}
- try{
-  if('serviceWorker' in navigator){
-   const regs=await navigator.serviceWorker.getRegistrations();
-   await Promise.all(regs.map(r=>r.update().catch(()=>{})));
-  }
-  if('caches' in window){
-   const keys=await caches.keys();
-   await Promise.all(keys.map(k=>caches.delete(k)));
-  }
- }finally{
-  const u=new URL(window.location.href);
-  u.searchParams.set('_refresh',Date.now().toString());
-  window.location.replace(u.toString());
- }
-}
-'''
-          if 'async function manualRefresh()' not in out:
-              marker='function upgradeLabels(){'
-              if marker not in out: raise SystemExit('upgradeLabels marker missing')
-              out=out.replace(marker, refresh_js+'\n'+marker, 1)
-
           p.write_text(out)
           print('stable envelope overlaid', env['iterations'], env['aad'], len(env['cipher']))
-          print('product-card naming and manual refresh injected')
           PY
 
       - name: Verify encrypted-at-rest source
@@ -110,9 +73,6 @@ async function manualRefresh(){
           ! grep -q '手动抽芯铆钉枪' sku-pwa-auth/index.html
           grep -q 'authScreen' sku-pwa-auth/index.html
           grep -q 'decryptPayload' sku-pwa-auth/index.html
-          grep -q 'id="refreshBtn"' sku-pwa-auth/index.html
-          grep -q 'async function manualRefresh()' sku-pwa-auth/index.html
-          grep -q '产品卡' sku-pwa-auth/index.html
           test -s sku-pwa-auth-src/envelope.json
 
       - name: Build CI-only decryptable auth test site
@@ -208,8 +168,6 @@ async function manualRefresh(){
           [ "$READY" = "1" ] || { cat auth-curl.err; exit 1; }
           grep -qi 'content-type: text/html' auth-index-headers.txt
           ! grep -q '声光漏水报警器' auth-public-index.html
-          grep -q 'id="refreshBtn"' auth-public-index.html
-          grep -q '产品卡' auth-public-index.html
           python3 - <<'PY'
           from pathlib import Path
           import re,json
