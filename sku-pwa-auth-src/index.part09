@@ -40,13 +40,38 @@ function dataQuality(d){
 }
 function targetCostDisplay(d){return d.targetCost<0?'跨境模型不成立':money(d.targetCost);}
 function ozonMonthProfit(d){return [d.profit*d.ozForecast[0],d.profit*d.ozForecast[1]];}
+async function manualRefresh(){
+ const btn=document.getElementById('refreshBtn');
+ if(btn){btn.disabled=true;btn.textContent='刷新中…';}
+ try{
+   if('serviceWorker' in navigator){
+     const regs=await navigator.serviceWorker.getRegistrations();
+     await Promise.all(regs.map(r=>r.update().catch(()=>{})));
+   }
+   if('caches' in window){
+     const keys=await caches.keys();
+     await Promise.all(keys.map(k=>caches.delete(k)));
+   }
+ }finally{
+   const u=new URL(window.location.href);
+   u.searchParams.set('_refresh',Date.now().toString());
+   window.location.replace(u.toString());
+ }
+}
 function upgradeLabels(){
  const th=document.querySelectorAll('.ranking th');
  if(th[8])th[8].textContent='Ozon月利润情景';
  const btn=document.querySelectorAll('.toggle button');
  if(btn[2])btn[2].textContent='按Ozon月利润';
  const hp=document.querySelector('.hero p');
- if(hp)hp.textContent='总览 → 排名 → SKU选择 → 单项决策卡。利润只展示当前已成立的Ozon跨境模型；WB利润、包装体积、精确竞品等未闭环字段明确标注待补，不再用代理值冒充。';
+ if(hp)hp.textContent='总览 → 排名 → SKU选择 → 产品卡。利润只展示当前已成立的Ozon跨境模型；WB利润、包装体积、精确竞品等未闭环字段明确标注待补，不再用代理值冒充。';
+ const lock=document.getElementById('lockBtn');
+ if(lock && !document.getElementById('refreshBtn')){
+   const rb=document.createElement('button');
+   rb.id='refreshBtn';rb.type='button';rb.className='lock-btn';rb.textContent='↻ 人工刷新';rb.title='强制获取服务器最新版本';
+   rb.style.marginRight='8px';rb.addEventListener('click',manualRefresh);
+   lock.insertAdjacentElement('afterend',rb);
+ }
 }
 function renderDetail(id){
  const d=data.find(x=>x.rank===id)||sorted[0]; const [bt,bc]=badge(d);
@@ -57,7 +82,7 @@ function renderDetail(id){
  const ozLinkState=linkStatus(d.links.ozon), wbLinkState=linkStatus(d.links.wb);
  const specState=(d.spec||'').includes('待核')?'存在待核规格':'主要规格已记录';
  document.getElementById('detail').innerHTML=`<div class="card">
- <div class="titleline"><div><h2>${d.sku}</h2><div class="family">${d.family}｜${d.action}</div></div><span class="badge ${bc}">${bt}</span></div>
+ <div class="titleline"><div><h2>${d.sku}</h2><div class="family">产品卡｜${d.family}｜${d.action}</div></div><span class="badge ${bc}">${bt}</span></div>
  <div style="margin-top:12px;padding:12px 14px;border:1px solid ${quality==='B'?'#bfdbfe':'#fed7aa'};background:${quality==='B'?'#eff6ff':'#fff7ed'};border-radius:14px;font-size:12px;line-height:1.65">
    <b>数据闭环等级：${quality}</b>　｜　驾驶舱更新：${DASHBOARD_VERSION_DATE}　｜　市场原始采集日：待逐SKU补录<br>
    A=精确SKU＋双平台真实利润＋包装/采购闭环；B=已有双平台需求证据但仍缺关键成本/竞品字段；C=关键需求或成本证据未闭环。当前没有把估算数据标成A级。
