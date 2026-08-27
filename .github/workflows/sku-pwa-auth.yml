@@ -111,6 +111,28 @@ jobs:
           for f in ['icon-180.png','icon-192.png','icon-512.png']:(d/'icons'/f).write_bytes(Path('sku-pwa-auth/icons',f).read_bytes())
           PY
 
+      - name: Diagnose production envelope password separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,base64,os,gzip
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          from cryptography.hazmat.primitives import hashes
+          env=json.loads(Path('/tmp/full-envelope.json').read_text())
+          try:
+              password=os.environ['CI_AUTH_TEST_PASSWORD'].encode()
+              key=PBKDF2HMAC(algorithm=hashes.SHA256(),length=32,salt=base64.b64decode(env['salt']),iterations=env['iterations']).derive(password)
+              plain=AESGCM(key).decrypt(base64.b64decode(env['iv']),base64.b64decode(env['cipher']),env['aad'].encode())
+              if env.get('compressed')=='gzip': plain=gzip.decompress(plain)
+              data=json.loads(plain)
+              print(f'PRODUCTION_ENVELOPE_CI_PASSWORD_MATCH=true count={len(data) if isinstance(data,list) else "non-list"}')
+          except Exception:
+              print('PRODUCTION_ENVELOPE_CI_PASSWORD_MATCH=false')
+          PY
+
       - name: Install Playwright Chromium
         run: |
           npm install --no-save playwright
@@ -130,7 +152,10 @@ jobs:
         env:
           PWA_URL: http://127.0.0.1:4174/index.html
           AUTH_TEST_PASSWORD: ${{ env.CI_AUTH_TEST_PASSWORD }}
-        run: node tests-pwa-auth/auth-browser.mjs | tee auth-ci-qa.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests-pwa-auth/auth-browser.mjs | tee auth-ci-qa.json
 
       - name: Publish production encrypted build to clean branch
         shell: bash
