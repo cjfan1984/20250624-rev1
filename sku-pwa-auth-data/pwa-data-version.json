@@ -1,8 +1,8 @@
 {
-  "schema": "SKU-PWA-EXTERNAL-DATA-V1",
-  "version": "b0611833d1f6858d",
   "records": 307,
   "envelopeSha256": "b0611833d1f6858d62c07e88773045f777669372512701098ca95b70d36ecc2c",
   "payloadSchema": "SKU-PRODUCT-CARD-V3",
-  "fragmentCount": 9
+  "fragmentCount": 9,
+  "schema": "SKU-PWA-EXTERNAL-DATA-V4",
+  "version": "b0611833d1f6858d"
 }
