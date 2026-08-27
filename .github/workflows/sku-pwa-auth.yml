@@ -217,7 +217,20 @@ jobs:
           curl -fsSL -D auth-sw-headers.txt "$BASE/sw.js" -o auth-public-sw.js
           grep -qi 'application/manifest' auth-manifest-headers.txt
           grep -qi 'application/javascript' auth-sw-headers.txt
+          grep -q 'sku-decision-auth-v1-5' auth-public-sw.js
           PWA_URL="$URL" node tests-pwa-auth/auth-public-browser.mjs | tee auth-public-qa.json
+          STABLE_URL="https://cdn.githubraw.com/${GITHUB_REPOSITORY}/sku-pwa-auth-public/index.html?_pwa=${SHA}"
+          curl -fsSL --connect-timeout 8 -D auth-stable-headers.txt "$STABLE_URL" > auth-stable-index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          expected=json.loads(Path('/tmp/full-envelope.json').read_text())
+          s=Path('auth-stable-index.html').read_text()
+          m=re.search(r'const ENCRYPTED_PAYLOAD=(\{.*?\});\s*let data=',s,re.S)
+          if not m: raise SystemExit('stable PWA envelope missing')
+          if json.loads(m.group(1))!=expected: raise SystemExit('stable PWA cache did not refresh')
+          print('stable branch cache-busted PWA verified')
+          PY
 
       - name: Upload auth PWA evidence
         uses: actions/upload-artifact@v4
@@ -227,6 +240,8 @@ jobs:
             auth-pwa-url.txt
             auth-ci-qa.json
             auth-public-qa.json
+            auth-stable-index.html
+            auth-stable-headers.txt
             auth-login-mobile.png
             auth-app-mobile.png
             auth-public-login.png
