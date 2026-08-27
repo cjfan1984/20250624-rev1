@@ -29,4 +29,7 @@ def test_dedupe():
 
 def test_registry():
     assert len(m.MODULE_REGISTRY)==25
-    assert sum(x['status']=='active' for x in m.MODULE_REGISTRY)==6
+    assert len(m.CORE_BUNDLES)==6
+    active_numbers={x['number'] for x in m.MODULE_REGISTRY if x['status']=='active'}
+    assert active_numbers=={1,2,3,4,5,6,7,8,11}
+    assert {b['bundle'] for b in m.CORE_BUNDLES}=={1,2,3,4,5,6}
