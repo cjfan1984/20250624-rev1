@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   extract:
@@ -31,9 +31,24 @@ jobs:
           if not m: raise SystemExit('payload not found')
           env=json.loads(m.group(1))
           assert set(env)=={'salt','iv','cipher','iterations','aad'}
-          Path('/tmp/envelope.json').write_text(json.dumps(env,separators=(',',':')))
+          out=json.dumps(env,separators=(',',':'))
+          Path('/tmp/envelope.json').write_text(out)
+          Path('sku-pwa-auth-src/envelope.json').write_text(out)
           print('envelope extracted', env['iterations'], env['aad'], len(env['cipher']))
           PY
+      - name: Persist working envelope in source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sku-pwa-auth-src/envelope.json
+          if git diff --cached --quiet; then
+            echo 'Envelope already persisted.'
+          else
+            git commit -m 'Persist working PWA envelope [skip ci]'
+            git push origin HEAD:sku-pwa-auth-test
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: working-envelope
