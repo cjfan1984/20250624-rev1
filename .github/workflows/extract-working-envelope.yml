@@ -1,0 +1,41 @@
+name: Extract Working PWA Envelope
+
+on:
+  push:
+    branches: [sku-pwa-auth-test]
+    paths:
+      - ".github/workflows/extract-working-envelope.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract known-working encrypted envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin d5800a303e79b14a14abe1fde52d49d3ade2c6d3 || true
+          git show d5800a303e79b14a14abe1fde52d49d3ade2c6d3:index.html > /tmp/working-index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, json
+          s=Path('/tmp/working-index.html').read_text()
+          m=re.search(r'const ENCRYPTED_PAYLOAD=(\{.*?\});\s*let data=',s,re.S)
+          if not m: raise SystemExit('payload not found')
+          env=json.loads(m.group(1))
+          assert set(env)=={'salt','iv','cipher','iterations','aad'}
+          Path('/tmp/envelope.json').write_text(json.dumps(env,separators=(',',':')))
+          print('envelope extracted', env['iterations'], env['aad'], len(env['cipher']))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: working-envelope
+          path: /tmp/envelope.json
+          retention-days: 1
