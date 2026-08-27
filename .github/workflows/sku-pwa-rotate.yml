@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: sku-pwa-password-rotation
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   rotate:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,26 +81,50 @@ jobs:
           done
           echo 'Timed out waiting for password rotation.'
           exit 1
-      - name: Validate and publish new encrypted build
+      - name: Validate and persist new encrypted envelope
         shell: bash
         run: |
           set -euo pipefail
           ! grep -q '声光漏水报警器' /tmp/new-index.html
           ! grep -q '手动抽芯铆钉枪' /tmp/new-index.html
           grep -q 'const ENCRYPTED_PAYLOAD=' /tmp/new-index.html
-          rm -rf /tmp/auth-public-worktree
-          git worktree add -B sku-pwa-auth-rotate-publish /tmp/auth-public-worktree origin/sku-pwa-auth-public
-          cp /tmp/new-index.html /tmp/auth-public-worktree/index.html
-          cd /tmp/auth-public-worktree
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          s=Path('/tmp/new-index.html').read_text()
+          m=re.search(r'const ENCRYPTED_PAYLOAD=(\{.*?\});\s*let data=',s,re.S)
+          if not m: raise SystemExit('new envelope missing')
+          env=json.loads(m.group(1))
+          if set(env)!={'salt','iv','cipher','iterations','aad'}: raise SystemExit('invalid envelope fields')
+          Path('sku-pwa-auth-src/envelope.json').write_text(json.dumps(env,separators=(',',':')))
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git commit -m 'Rotate encrypted PWA access password'
-          NEW_SHA=$(git rev-parse HEAD)
-          git push origin HEAD:refs/heads/sku-pwa-auth-public
+          git add sku-pwa-auth-src/envelope.json
+          git commit -m 'Persist rotated PWA access envelope'
+          SOURCE_SHA=$(git rev-parse HEAD)
+          printf '%s\n' "$SOURCE_SHA" > /tmp/source-sha.txt
+          git push origin HEAD:refs/heads/sku-pwa-auth-test
+      - name: Wait for standard QA publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=$(cat /tmp/source-sha.txt)
+          RUN_ID=''
+          for i in {1..60}; do
+            RUN_ID=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${SOURCE_SHA}&per_page=20" --jq '.workflow_runs[] | select(.path==".github/workflows/sku-pwa-auth.yml") | .id' | head -1 || true)
+            [ -n "$RUN_ID" ] && break
+            sleep 3
+          done
+          [ -n "$RUN_ID" ] || { echo 'standard publish run not found'; exit 1; }
+          gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
+          git fetch origin sku-pwa-auth-public:refs/remotes/origin/sku-pwa-auth-public --force
+          NEW_SHA=$(git rev-parse refs/remotes/origin/sku-pwa-auth-public)
           printf '%s\n' "$NEW_SHA" > /tmp/new-sha.txt
           printf 'https://cdn.githubraw.com/%s/%s/index.html\n' "$GITHUB_REPOSITORY" "$NEW_SHA" > /tmp/new-url.txt
-      - name: Verify new public build stays encrypted and locked
+      - name: Verify new public build uses persisted envelope
         shell: bash
         run: |
           set -euo pipefail
@@ -115,6 +140,17 @@ jobs:
           grep -q 'const ENCRYPTED_PAYLOAD=' /tmp/public-index.html
           ! grep -q '声光漏水报警器' /tmp/public-index.html
           ! grep -q '手动抽芯铆钉枪' /tmp/public-index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          expected=json.loads(Path('sku-pwa-auth-src/envelope.json').read_text())
+          s=Path('/tmp/public-index.html').read_text()
+          m=re.search(r'const ENCRYPTED_PAYLOAD=(\{.*?\});\s*let data=',s,re.S)
+          if not m: raise SystemExit('public envelope missing')
+          actual=json.loads(m.group(1))
+          if actual!=expected: raise SystemExit('rotated envelope not preserved')
+          print('rotated envelope preserved')
+          PY
           cat /tmp/new-url.txt
       - name: Upload rotation completion evidence
         uses: actions/upload-artifact@v4
@@ -123,7 +159,6 @@ jobs:
           path: |
             /tmp/new-url.txt
             /tmp/new-sha.txt
+            /tmp/source-sha.txt
             /tmp/rotation-done.json
           retention-days: 7
-
-# Manual one-time rotation trigger: 2026-08-27
