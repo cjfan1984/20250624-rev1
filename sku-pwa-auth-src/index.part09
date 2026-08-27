@@ -2,6 +2,34 @@ t=`${i+1}｜${d.sku}｜${pct(d.margin)}`;s.appendChild(o)});
  if(current && [...s.options].some(o=>o.value===current))s.value=current; else s.value=sorted[0].rank;
  s.onchange=()=>renderDetail(Number(s.value));
 }
+
+function isStandaloneMode(){return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;}
+async function copyExternalText(text){
+ try{await navigator.clipboard.writeText(text);return true;}catch(e){
+  try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok;}catch(_){return false;}
+ }
+}
+function openPlatformLink(event,platform,url,sku){
+ if(event)event.preventDefault();
+ if(isStandaloneMode()){
+   window.location.href=url;
+   return false;
+ }
+ const old=document.getElementById('platformLaunchOverlay');if(old)old.remove();
+ const overlay=document.createElement('div');overlay.id='platformLaunchOverlay';
+ overlay.style.cssText='position:fixed;inset:0;z-index:500;background:rgba(15,23,42,.48);display:flex;align-items:flex-end;justify-content:center;padding:14px';
+ const box=document.createElement('div');box.style.cssText='width:min(100%,430px);background:#fff;border-radius:20px;padding:18px;box-shadow:0 18px 50px rgba(15,23,42,.25);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif';
+ const title=document.createElement('div');title.style.cssText='font-size:18px;font-weight:800;margin-bottom:8px';title.textContent='打开 '+platform;
+ const msg=document.createElement('div');msg.style.cssText='font-size:12px;line-height:1.65;color:#667085;margin-bottom:12px';
+ msg.textContent='当前不是主屏幕PWA模式。内置浏览器的网络出口可能被 '+platform+' 识别为VPN。建议先把SKU决策添加到主屏幕并从图标打开；也可以复制链接后用Safari打开。';
+ const make=(label,primary=false)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.style.cssText='width:100%;min-height:46px;margin-top:8px;border-radius:12px;border:'+(primary?'0':'1px solid #d0d5dd')+';background:'+(primary?'#2563eb':'#fff')+';color:'+(primary?'#fff':'#172033')+';font-weight:750;font-size:14px';return b};
+ const tryBtn=make('仍然尝试打开 '+platform,true);tryBtn.onclick=()=>{overlay.remove();window.open(url,'_blank','noopener,noreferrer')};
+ const copyBtn=make('复制平台链接');copyBtn.onclick=async()=>{const ok=await copyExternalText(url);copyBtn.textContent=ok?'✓ 链接已复制':'复制失败，请长按链接复制'};
+ const keyBtn=make('复制搜索词：'+sku);keyBtn.onclick=async()=>{const ok=await copyExternalText(sku);keyBtn.textContent=ok?'✓ 搜索词已复制':'复制失败，请手动复制'};
+ const closeBtn=make('取消');closeBtn.onclick=()=>overlay.remove();
+ box.append(title,msg,tryBtn,copyBtn,keyBtn,closeBtn);overlay.appendChild(box);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});document.body.appendChild(overlay);
+ return false;
+}
 function renderDetail(id){
  const d=data.find(x=>x.rank===id)||sorted[0]; const [bt,bc]=badge(d);
  const monthlyMid=(d.monthProfit[0]+d.monthProfit[1])/2;
@@ -26,8 +54,8 @@ function renderDetail(id){
    <a href="${d.links['1688']}" target="_blank" rel="noopener">1688货源</a>
    <a href="${d.links.taobao}" target="_blank" rel="noopener">淘宝货源</a>
    <a href="${d.links.pdd}" target="_blank" rel="noopener">拼多多货源</a>
-   <a href="${d.links.wb}" target="_blank" rel="noopener">WB对标竞品</a>
-   <a href="${d.links.ozon}" target="_blank" rel="noopener">Ozon对标竞品</a>
+   <a href="${d.links.wb}" onclick="return openPlatformLink(event,'WB',this.href,${JSON.stringify(d.sku)})" rel="noopener">WB对标竞品</a>
+   <a href="${d.links.ozon}" onclick="return openPlatformLink(event,'Ozon',this.href,${JSON.stringify(d.sku)})" rel="noopener">Ozon对标竞品</a>
  </div>
  <div class="note">链接规则：若精确商品页尚未核实，按钮进入该平台的同规格搜索结果，不留空、不冒充精确货源。月利润总额目前为双平台代理估算；WB真实佣金与跨境物流闭环后会替换为正式值。</div>
  </div>`;

@@ -29,6 +29,12 @@ if(!secondTitle.includes('3.6×150mm 100条黑色')) throw new Error(`Dropdown s
 await page.getByRole('button',{name:'按单件利润'}).click();
 const topProfit=await page.locator('#skuSelect option').first().innerText();
 if(!topProfit.includes('手动抽芯铆钉枪')) throw new Error(`Profit sort failed ${topProfit}`);
+await page.getByRole('link',{name:'WB对标竞品'}).click();
+await page.locator('#platformLaunchOverlay').waitFor();
+const launcherText=await page.locator('#platformLaunchOverlay').innerText();
+if(!launcherText.includes('复制平台链接')||!launcherText.includes('复制搜索词')) throw new Error(`Platform launcher missing fallbacks: ${launcherText}`);
+await page.getByRole('button',{name:'取消'}).click();
+if(await page.locator('#platformLaunchOverlay').count()) throw new Error('Platform launcher did not close');
 await page.screenshot({path:'auth-app-mobile.png',fullPage:true});
 await page.click('#lockBtn');
 await page.locator('#authScreen:not([hidden])').waitFor();
