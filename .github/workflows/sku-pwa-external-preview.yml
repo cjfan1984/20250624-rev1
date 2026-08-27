@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: sku-pwa-external-preview
+  group: sku-pwa-external-preview-v2
   cancel-in-progress: true
 
 jobs:
@@ -46,6 +46,7 @@ jobs:
           ! grep -q '声光漏水报警器' /tmp/external-site/index.html
           grep -q 'networkFirst' /tmp/external-site/sw.js
           grep -q 'SKU自动化中心' /tmp/external-site/sw.js
+          ! grep -q 'ensureChatGptBridge();renderAutomationCenter();' /tmp/external-site/sw.js
       - name: Install Playwright Chromium
         run: |
           npm install --no-save playwright
@@ -56,6 +57,7 @@ jobs:
           for i in {1..30}; do curl -fsS http://127.0.0.1:4175/index.html >/dev/null && exit 0; sleep 1; done
           cat external-server.log; exit 1
       - name: Browser network-first and offline QA
+        timeout-minutes: 4
         env:
           PWA_URL: http://127.0.0.1:4175/index.html
         run: node tests-pwa-auth/external-loader.mjs | tee external-browser.json
