@@ -49,6 +49,20 @@ jobs:
           touch sku-pwa-auth/.nojekyll
           cd sku-pwa-auth
           sha256sum -c ../sku-pwa-auth-src/checksums.txt
+          cd ..
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, json
+          p=Path('sku-pwa-auth/index.html')
+          s=p.read_text()
+          env=json.loads(Path('sku-pwa-auth-src/envelope.json').read_text())
+          if set(env)!={'salt','iv','cipher','iterations','aad'}: raise SystemExit('invalid envelope fields')
+          literal=json.dumps(env,separators=(',',':'))
+          out,n=re.subn(r'const ENCRYPTED_PAYLOAD=\{.*?\};\s*let data=', 'const ENCRYPTED_PAYLOAD='+literal+';\nlet data=', s, count=1, flags=re.S)
+          if n!=1: raise SystemExit('payload overlay failed')
+          p.write_text(out)
+          print('stable envelope overlaid', env['iterations'], env['aad'], len(env['cipher']))
+          PY
 
       - name: Verify encrypted-at-rest source
         shell: bash
@@ -59,6 +73,7 @@ jobs:
           ! grep -q '手动抽芯铆钉枪' sku-pwa-auth/index.html
           grep -q 'authScreen' sku-pwa-auth/index.html
           grep -q 'decryptPayload' sku-pwa-auth/index.html
+          test -s sku-pwa-auth-src/envelope.json
 
       - name: Build CI-only decryptable auth test site
         shell: bash
@@ -70,7 +85,6 @@ jobs:
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
           from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
           from cryptography.hazmat.primitives import hashes
-          # Reconstruct old already-public V1 only for ephemeral CI auth testing.
           old=''.join(Path(f'sku-pwa-src/index.part{i:02d}').read_text() for i in range(1,7))
           m=re.search(r'const data=(\[.*?\]);\s*let sorted=',old,re.S)
           raw=m.group(1)
@@ -80,7 +94,7 @@ jobs:
           cipher=AESGCM(key).encrypt(iv,raw.encode(),aad)
           enc={'salt':base64.b64encode(salt).decode(),'iv':base64.b64encode(iv).decode(),'cipher':base64.b64encode(cipher).decode(),'iterations':iterations,'aad':'SKU31-V1.1'}
           prod=Path('sku-pwa-auth/index.html').read_text()
-          prod=re.sub(r'const ENCRYPTED_PAYLOAD=\{.*?\};\nlet data=', 'const ENCRYPTED_PAYLOAD='+json.dumps(enc,separators=(',',':'))+';\nlet data=',prod,count=1,flags=re.S)
+          prod=re.sub(r'const ENCRYPTED_PAYLOAD=\{.*?\};\s*let data=', 'const ENCRYPTED_PAYLOAD='+json.dumps(enc,separators=(',',':'))+';\nlet data=',prod,count=1,flags=re.S)
           d=Path('/tmp/auth-test-site');(d/'icons').mkdir(parents=True,exist_ok=True)
           (d/'index.html').write_text(prod)
           for f in ['manifest.webmanifest','sw.js']:(d/f).write_bytes(Path('sku-pwa-auth',f).read_bytes())
@@ -137,7 +151,7 @@ jobs:
           git push --force origin HEAD:refs/heads/sku-pwa-auth-public
           echo "Published auth commit: $PUBLISH_SHA"
 
-      - name: Verify public encrypted PWA lock screen
+      - name: Verify public encrypted PWA lock screen and envelope continuity
         shell: bash
         run: |
           set -euo pipefail
@@ -154,6 +168,17 @@ jobs:
           [ "$READY" = "1" ] || { cat auth-curl.err; exit 1; }
           grep -qi 'content-type: text/html' auth-index-headers.txt
           ! grep -q '声光漏水报警器' auth-public-index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          expected=json.loads(Path('sku-pwa-auth-src/envelope.json').read_text())
+          s=Path('auth-public-index.html').read_text()
+          m=re.search(r'const ENCRYPTED_PAYLOAD=(\{.*?\});\s*let data=',s,re.S)
+          if not m: raise SystemExit('public envelope missing')
+          actual=json.loads(m.group(1))
+          if actual!=expected: raise SystemExit('public envelope drifted')
+          print('public envelope continuity verified')
+          PY
           BASE="${URL%/index.html}"
           curl -fsSL -D auth-manifest-headers.txt "$BASE/manifest.webmanifest" -o auth-public-manifest.webmanifest
           curl -fsSL -D auth-sw-headers.txt "$BASE/sw.js" -o auth-public-sw.js
