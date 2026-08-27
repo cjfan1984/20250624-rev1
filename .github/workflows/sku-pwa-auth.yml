@@ -172,10 +172,15 @@ jobs:
           cp -a /tmp/sku-pwa-auth-public-build/. /tmp/sku-pwa-auth-public-worktree/
           cd /tmp/sku-pwa-auth-public-worktree
           git add -A
-          git commit -m "Publish encrypted full-library SKU PWA"
-          PUBLISH_SHA=$(git rev-parse HEAD)
+          if git diff --cached --quiet; then
+            PUBLISH_SHA=$(git rev-parse HEAD)
+            echo "No encrypted PWA changes; retaining public commit: $PUBLISH_SHA"
+          else
+            git commit -m "Publish encrypted full-library SKU PWA"
+            PUBLISH_SHA=$(git rev-parse HEAD)
+            git push --force origin HEAD:refs/heads/sku-pwa-auth-public
+          fi
           printf '%s\n' "$PUBLISH_SHA" > /tmp/auth-publish-sha.txt
-          git push --force origin HEAD:refs/heads/sku-pwa-auth-public
           echo "Published auth commit: $PUBLISH_SHA"
 
       - name: Verify public encrypted PWA lock screen and envelope continuity
