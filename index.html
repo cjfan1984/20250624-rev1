@@ -1,4 +1,123 @@
-t=`${i+1}｜${d.sku}｜${pct(d.margin)}`;s.appendChild(o)});
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>全库 SKU 选品产品卡</title>
+<meta name="theme-color" content="#13233f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SKU决策">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;--good:#0f9f6e;--warn:#d97706;--bad:#dc2626;--blue:#2563eb;--soft:#eef4ff;}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--text)}
+.wrap{max-width:1180px;margin:0 auto;padding:18px} .hero{background:linear-gradient(135deg,#13233f,#203c67);color:#fff;border-radius:22px;padding:22px}
+.hero h1{margin:0 0 8px;font-size:24px} .hero p{margin:0;color:#dbeafe;font-size:13px;line-height:1.6}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px} .kpi{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:12px}
+.kpi b{font-size:23px;display:block} .kpi span{font-size:12px;color:#dbeafe}
+.toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;margin:14px 0} select{width:100%;padding:13px;border:1px solid var(--line);border-radius:13px;background:#fff;font-size:15px}
+.toggle{display:flex;gap:6px} .toggle button{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 12px;cursor:pointer}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 8px 26px rgba(15,23,42,.06)} 
+.titleline{display:flex;align-items:flex-start;justify-content:space-between;gap:12px} h2{margin:0;font-size:21px;line-height:1.35} .family{font-size:12px;color:var(--muted);margin-top:5px}
+.badge{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap} .good{background:#dcfce7;color:#067647} .warn{background:#fff7ed;color:#b45309} .bad{background:#fee2e2;color:#b91c1c}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px} .metric{border:1px solid var(--line);border-radius:14px;padding:11px;background:#fafafa}
+.metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:5px} .metric strong{font-size:18px} .metric .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.spec{margin-top:14px;padding:12px;background:#f8fafc;border-radius:14px;font-size:13px;line-height:1.65}
+.links{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px} .links a{text-decoration:none;text-align:center;padding:11px 8px;border-radius:12px;font-weight:700;font-size:13px;border:1px solid #cbd5e1;background:#fff;color:#1e3a5f}
+.links a:hover{background:var(--soft);border-color:#93c5fd} .links a:nth-child(4),.links a:nth-child(5){background:#eff6ff}
+.note{font-size:12px;line-height:1.6;color:var(--muted);margin-top:12px}
+.ranking{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;overflow:auto} table{width:100%;border-collapse:collapse;min-width:850px} th,td{padding:9px;border-bottom:1px solid #eef2f7;text-align:left;font-size:12px} th{color:#64748b;background:#f8fafc;position:sticky;top:0} tr{cursor:pointer} tr:hover{background:#f8fbff}
+.pos{color:#067647;font-weight:700} .neg{color:#b91c1c;font-weight:700}
+@media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}.toolbar{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}.links{grid-template-columns:repeat(2,1fr)}.links a:last-child{grid-column:1/-1}}
+
+/* PWA/mobile stability additions: preserve original UI, improve touch only */
+button,select,a{-webkit-tap-highlight-color:transparent} button,select{min-height:44px}
+.install-tip{display:none;position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:50;background:#172033;color:white;border-radius:14px;padding:11px 38px 11px 13px;font-size:12px;line-height:1.45;box-shadow:0 10px 30px rgba(15,23,42,.25)}
+.install-tip button{position:absolute;right:8px;top:7px;border:0;background:transparent;color:#fff;font-size:18px;min-height:28px;padding:0 7px}
+@media(max-width:760px){.wrap{padding:10px}.hero{padding:16px;border-radius:18px}.hero h1{font-size:20px}.toggle{display:grid;grid-template-columns:repeat(3,1fr)}.toggle button{padding:8px 6px;font-size:12px}.card{padding:14px}.metric strong{font-size:16px}.ranking{padding:10px;border-radius:16px}.links a{min-height:44px;display:flex;align-items:center;justify-content:center}}
+
+.auth-screen{position:fixed;inset:0;z-index:100;background:linear-gradient(145deg,#eef3fa,#f8fafc);display:flex;align-items:center;justify-content:center;padding:22px}
+.auth-card{width:min(92vw,390px);background:#fff;border:1px solid #dbe3ee;border-radius:22px;padding:24px;box-shadow:0 18px 50px rgba(15,23,42,.13)}
+.auth-mark{width:52px;height:52px;border-radius:15px;background:#13233f;color:#fff;display:grid;place-items:center;font-size:24px;margin-bottom:16px}
+.auth-card h1{font-size:22px;margin:0 0 7px}.auth-card p{margin:0 0 18px;color:#667085;font-size:12px;line-height:1.6}
+.auth-field{display:block;font-size:12px;font-weight:700;margin-bottom:7px}.auth-card input{width:100%;min-height:48px;border:1px solid #cfd8e6;border-radius:12px;padding:11px 12px;font-size:16px;outline:none}.auth-card input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.auth-card .login-btn{width:100%;margin-top:10px;min-height:48px;border:0;border-radius:12px;background:#1f5bd8;color:#fff;font-weight:800;font-size:15px}.auth-card .login-btn:disabled{opacity:.6}
+.auth-error{min-height:20px;margin-top:8px;color:#b91c1c;font-size:12px}.auth-foot{border-top:1px solid #eef2f6;margin-top:10px;padding-top:10px;color:#667085;font-size:11px;line-height:1.55}
+.lock-btn{float:right;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.10);color:white;border-radius:10px;padding:7px 10px;font-size:12px;font-weight:700;min-height:38px;cursor:pointer}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="authScreen" class="auth-screen">
+  <form id="authForm" class="auth-card" autocomplete="off">
+    <div class="auth-mark">🔐</div>
+    <h1>SKU 选品决策驾驶舱</h1>
+    <p>受保护数据。请输入访问密码后在本机解密，密码不会上传到服务器。</p>
+    <label class="auth-field" for="authPassword">访问密码</label>
+    <input id="authPassword" type="password" inputmode="text" autocomplete="current-password" placeholder="请输入密码" required>
+    <button id="loginBtn" class="login-btn" type="submit">登录</button>
+    <div id="authError" class="auth-error" role="alert"></div>
+    <div class="auth-foot">全库SKU数据已加密存储。关闭或重新加载页面后需要重新输入密码。</div>
+  </form>
+</div>
+<div class="wrap" id="appRoot" hidden>
+<button id="lockBtn" class="lock-btn" type="button">🔒 锁定</button>
+<div class="hero"><h1>全库 SKU 选品决策驾驶舱</h1><p>全库产品卡 → 净利润排名 → 数据闭环 → 竞品差评 → 货源与竞品链接。记录数在解密后按当前数据动态显示。</p>
+<div class="kpis"><div class="kpi"><b>—</b><span>全库产品卡</span></div><div class="kpi"><b>—</b><span>可参与净利润排名</span></div><div class="kpi"><b>—</b><span>净利率≥15%</span></div><div class="kpi"><b>—</b><span>候选待补 / STOP</span></div></div></div>
+<div class="toolbar"><select id="skuSelect"></select><div class="toggle"><button onclick="sortBy('margin')">按净利率</button><button onclick="sortBy('profit')">按单件利润</button><button onclick="sortBy('month')">按月利润</button></div></div>
+<div id="detail"></div>
+<div class="ranking"><table><thead><tr><th>排名</th><th>SKU</th><th>售价</th><th>实际/情景成本</th><th>目标成本</th><th>单件利润</th><th>净利率</th><th>预计月单量</th><th>月利润代理值</th></tr></thead><tbody id="tbody"></tbody></table></div>
+</div>
+<div id="installTip" class="install-tip">在 Safari 点“分享” → “添加到主屏幕”，以后可像 App 一样打开。<button aria-label="关闭" onclick="this.parentElement.style.display='none';localStorage.setItem('pwaTipHidden','1')">×</button></div>
+<script>
+let ENCRYPTED_PAYLOAD=null;
+let PWA_DATA_VERSION=null;
+let PWA_DATA_READY=null;
+async function loadExternalEncryptedPayload(){
+  const loginBtn=document.getElementById('loginBtn');
+  const authError=document.getElementById('authError');
+  if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='加载数据…';}
+  try{
+    const versionUrl=new URL('./pwa-data-version.json',window.location.href);
+    const vr=await fetch(versionUrl.toString(),{cache:'no-store'});
+    if(!vr.ok)throw new Error(`version HTTP ${vr.status}`);
+    const meta=await vr.json();
+    if(!meta||!Number.isInteger(meta.records)||meta.records<1)throw new Error('version records invalid');
+    const dataUrl=new URL('./sku-data.enc.json',window.location.href);
+    const dr=await fetch(dataUrl.toString(),{cache:'no-store'});
+    if(!dr.ok)throw new Error(`data HTTP ${dr.status}`);
+    const env=await dr.json();
+    if(!env||env.kind!=='SKU-PWA-HYBRID-ENVELOPE')throw new Error('encrypted data kind invalid');
+    if(env.records!==meta.records)throw new Error(`record mismatch ${env.records}/${meta.records}`);
+    ENCRYPTED_PAYLOAD=env;
+    PWA_DATA_VERSION=meta;
+    window.PWA_DATA_VERSION=meta;
+    if(loginBtn){loginBtn.disabled=false;loginBtn.textContent='登录';}
+    if(authError)authError.textContent='';
+    return env;
+  }catch(err){
+    if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='数据加载失败';}
+    if(authError)authError.textContent='加密数据包加载失败；联网后点人工刷新，离线时会尝试使用上次缓存。';
+    console.error('PWA external data load failed',err);
+    throw err;
+  }
+}
+const authFormForData=document.getElementById('authForm');
+if(authFormForData){authFormForData.addEventListener('submit',event=>{if(!ENCRYPTED_PAYLOAD){event.preventDefault();event.stopImmediatePropagation();}},true);}
+PWA_DATA_READY=loadExternalEncryptedPayload();
+window.PWA_DATA_READY=PWA_DATA_READY;
+let data=[];
+let sorted=[];
+const money=n=>(n>=0?'¥':'-¥')+Math.abs(n).toFixed(2);
+const pct=n=>n.toFixed(1)+'%';
+const rub=n=>'₽'+Math.round(n).toLocaleString();
+const range=a=>a[0]===a[1]?String(a[0]):a[0]+'–'+a[1];
+function badge(d){if(d.margin>=20)return ['达到20%目标','good']; if(d.margin>=15)return ['15%–20%','warn']; if(d.profit>=0)return ['低于15%','warn']; return ['负利润','bad'];}
+function renderSelect(){
+ const s=document.getElementById('skuSelect'); const current=s.value; s.innerHTML='';
+ sorted.forEach((d,i)=>{const o=document.createElement('option');o.value=d.rank;o.textContent=`${i+1}｜${d.sku}｜${pct(d.margin)}`;s.appendChild(o)});
  if(current && [...s.options].some(o=>o.value===current))s.value=current; else s.value=sorted[0].rank;
  s.onchange=()=>renderDetail(Number(s.value));
 }
@@ -47,7 +166,7 @@ renderDetail=function(id){
 function formalProfitRanks(){return new Map([...data].filter(rankEligible).sort((a,b)=>profitScore(b)-profitScore(a)||a.rank-b.rank).map((d,i)=>[d.rank,i+1]));}
 renderTable=function(){const b=document.getElementById('tbody'),ranks=formalProfitRanks();b.innerHTML='';sorted.forEach(d=>{const tr=document.createElement('tr');tr.onclick=()=>{document.getElementById('skuSelect').value=d.rank;renderDetail(d.rank);window.scrollTo({top:0,behavior:'smooth'})};const pk=known(d,'profitKnown'),pe=rankEligible(d),state=d.stage==='STOP'?'STOP审计':pe?'可排名':'候选待补',formalRank=ranks.get(d.rank);tr.innerHTML=`<td>${formalRank??'—'}</td><td>${d.sku}</td><td>${safeText(d.priority)}</td><td>${fmtRub(d.price,known(d,'priceKnown'))}</td><td>${fmtMoney(d.cost,known(d,'costKnown'))}</td><td class="${pk?(d.profit>=0?'pos':'neg'):''}">${fmtMoney(d.profit,pk)}</td><td class="${pk?(d.margin>=15?'pos':'neg'):''}">${fmtPct(d.margin,pk)}</td><td>${state}</td><td>${safeText(d.updated)}</td>`;b.appendChild(tr);});};
 function sortBy(k){if(k==='margin')sorted.sort((a,b)=>marginScore(b)-marginScore(a)||a.rank-b.rank);else if(k==='profit')sorted.sort((a,b)=>profitScore(b)-profitScore(a)||a.rank-b.rank);else sorted.sort((a,b)=>a.rank-b.rank);renderSelect();renderTable();if(sorted[0])renderDetail(Number(document.getElementById('skuSelect').value||sorted[0].rank));}
-const HYBRID_KEYRING=__HYBRID_KEYRING__;
+const HYBRID_KEYRING={"version":1,"kind":"SKU-PWA-HYBRID-KEYRING","publicKey":{"algorithm":"RSA-OAEP-3072-SHA256","format":"SPKI-DER","encoding":"base64","data":"MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA7Aq5udmgSrELqKueKgm6uHIS+yVHHoGjBNrubs68pQUCzG/9F0AANOlfKIFX0Eio7mADACnpCUfs57XuuTXavkLaHQxZ0NtPjtc/+Iswdl7JXqfgJdj5xkt8vNa5HW8grhQlVqbPt19SxnUMLeTmc/u8nRb28yBGnPjlD6nbtZpPDNPGgti0HG+XCogao2SHsbxhaQWXqX/0wCpOlk/2Sk9STZH6UZN65vTrenp7EIXO4CENKY/Gh13n2Picr0tCasjUZsOXk+i8JaxaVLKiTwbhwP5I2blfVyhOiuzt5ZZlmi3DZVzAleaRq0vSdIdm2N2lebveCWHSHdHIq90LnvWb7VHQaXMlcSrSlxWTP5ThJ7zyo3/CzH6/rG/NhWGys2VIK41IgsI34517T9t94ijxxxo17L1sibapRjeUkD13q/BKaWrKJfTJvcb3gsfmq3YRPm6Nd6GXsoEMRGzLHLiNXLF9qqx1hze6JG4diEATqNM3SARsaDoBt8OsG2DhAgMBAAE=","fingerprintSha256":"5af793e84ee02ec55ff008e43c76ba154d753d74172d6bf6a9c62442a9896e12"},"wrappedPrivateKey":{"format":"PKCS8-DER","encoding":"base64","kdf":"PBKDF2-HMAC-SHA256","iterations":310000,"salt":"TNwGLv0UeB8cXEV14YgPig==","cipher":"AES-256-GCM","iv":"3HuH6nOoF83v9ExR","aad":"SKU-PWA-HYBRID-KEYRING-V1","ciphertext":"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"}};
 const b64bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function gunzipBytes(bytes){if(typeof DecompressionStream==='undefined')throw new Error('gzip unsupported');const ds=new DecompressionStream('gzip');const stream=new Blob([bytes]).stream().pipeThrough(ds);return new Uint8Array(await new Response(stream).arrayBuffer());}
 async function decryptLegacyPayload(password){const te=new TextEncoder(),td=new TextDecoder();const keyMaterial=await crypto.subtle.importKey('raw',te.encode(password),'PBKDF2',false,['deriveKey']);const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64bytes(ENCRYPTED_PAYLOAD.salt),iterations:ENCRYPTED_PAYLOAD.iterations,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['decrypt']);let plain=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64bytes(ENCRYPTED_PAYLOAD.iv),additionalData:te.encode(ENCRYPTED_PAYLOAD.aad)},key,b64bytes(ENCRYPTED_PAYLOAD.cipher)));if(ENCRYPTED_PAYLOAD.compressed==='gzip')plain=await gunzipBytes(plain);return JSON.parse(td.decode(plain));}
