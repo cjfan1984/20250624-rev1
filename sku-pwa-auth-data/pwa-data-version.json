@@ -1,8 +1,66 @@
 {
-  "records": 307,
-  "envelopeSha256": "b0611833d1f6858d62c07e88773045f777669372512701098ca95b70d36ecc2c",
-  "payloadSchema": "SKU-PRODUCT-CARD-V3",
-  "fragmentCount": 9,
   "schema": "SKU-PWA-EXTERNAL-DATA-V4",
-  "version": "b0611833d1f6858d"
+  "payloadSchema": "SKU-DYNAMIC-AUTOMATION-V4",
+  "version": "162fb3ca4970f142",
+  "records": 307,
+  "datasetSha256": "162fb3ca4970f142219bf93a0373fcec4e52c73bf8f28adac73b95e9fdd31a1e",
+  "envelopeSha256": "8a8041c9c6f639f138042cc1a42bdb7704fb43efcae0fadaced280a2fa945802",
+  "fragmentCount": 9,
+  "delta": {
+    "added": 307,
+    "changed": 0,
+    "removed": 0
+  },
+  "stats": {
+    "stop": 72,
+    "profitKnown": 68,
+    "orPass": 27,
+    "modelRankEligible": 28,
+    "p1": 26,
+    "structuralStop": 11,
+    "missingCritical": 307
+  },
+  "coreBundles": [
+    {"bundle":1,"name":"动态SKU入库","modules":[1]},
+    {"bundle":2,"name":"缺口雷达","modules":[2]},
+    {"bundle":3,"name":"自动补数队列","modules":[3]},
+    {"bundle":4,"name":"利润/极限判死","modules":[4,5]},
+    {"bundle":5,"name":"供应商/竞品自动维护","modules":[6,7,8]},
+    {"bundle":6,"name":"增量PWA同步","modules":[11]}
+  ],
+  "automationModules": [
+    {"id":"dynamic_ingest","name":"动态SKU入库引擎","number":1,"phase":1,"status":"active","bundle":1},
+    {"id":"gap_radar","name":"数据缺口雷达","number":2,"phase":1,"status":"active","bundle":2},
+    {"id":"auto_queue","name":"自动补数队列","number":3,"phase":1,"status":"active","bundle":3},
+    {"id":"profit_recalc","name":"利润实时重算","number":4,"phase":1,"status":"active","bundle":4},
+    {"id":"structural_stop","name":"极限利润判死引擎","number":5,"phase":1,"status":"active","bundle":4},
+    {"id":"supplier_compare","name":"供应商比价引擎","number":6,"phase":1,"status":"active","bundle":5},
+    {"id":"competitor_refresh","name":"竞品自动换新","number":7,"phase":1,"status":"active","bundle":5},
+    {"id":"image_maintenance","name":"图片自动获取/整理","number":8,"phase":1,"status":"active","bundle":5},
+    {"id":"data_quality","name":"数据质量审计","number":9,"phase":2,"status":"queued"},
+    {"id":"change_log","name":"SKU变更日志","number":10,"phase":2,"status":"queued"},
+    {"id":"incremental_sync","name":"自动版本/增量同步","number":11,"phase":1,"status":"active","bundle":6},
+    {"id":"local_cross_route","name":"本土/跨境双路线决策","number":12,"phase":2,"status":"queued"},
+    {"id":"price_sensitivity","name":"价格敏感性模拟器","number":13,"phase":2,"status":"queued"},
+    {"id":"purchase_cap","name":"采购价反推器","number":14,"phase":2,"status":"queued"},
+    {"id":"moq_cash","name":"MOQ资金占用模型","number":15,"phase":2,"status":"queued"},
+    {"id":"inventory_risk","name":"库存/现金流风险评分","number":16,"phase":2,"status":"queued"},
+    {"id":"sales_trend","name":"销量趋势/爆品预警","number":17,"phase":3,"status":"queued"},
+    {"id":"rank_change","name":"排名变化检测","number":18,"phase":3,"status":"queued"},
+    {"id":"anomaly_detection","name":"异常检测","number":19,"phase":3,"status":"queued"},
+    {"id":"similar_cluster","name":"相似SKU聚类","number":20,"phase":3,"status":"queued"},
+    {"id":"spec_matrix","name":"规格矩阵机会发现","number":21,"phase":3,"status":"queued"},
+    {"id":"supply_reuse","name":"供应链复用分析","number":22,"phase":3,"status":"queued"},
+    {"id":"review_pain","name":"评论痛点统计","number":23,"phase":4,"status":"queued"},
+    {"id":"qc_generator","name":"QC自动生成器","number":24,"phase":4,"status":"queued"},
+    {"id":"next_action","name":"自动任务生成器","number":25,"phase":2,"status":"queued"}
+  ],
+  "params": {
+    "rub_per_cny": 12.31981,
+    "platform_rate": 0.215,
+    "fixed_fee_cny": 3.0,
+    "profit_threshold_cny": 10.0,
+    "margin_threshold": 0.15,
+    "target_margin": 0.2
+  }
 }
