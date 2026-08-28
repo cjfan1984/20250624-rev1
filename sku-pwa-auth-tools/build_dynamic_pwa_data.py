@@ -53,7 +53,7 @@ def legacy_compat(record:dict[str,Any])->None:
     record['marginFraction']=margin_fraction
     if isinstance(margin_fraction,(int,float)):record['margin']=round(margin_fraction*100,4)
     record['formalProfitClosed']=record.get('pwaTier')=='FORMAL_PROFIT'
-    record['profitRankEligible']=bool(record.get('profitKnown') and record.get('stage')!='STOP')
+    record['profitRankEligible']=bool(record.get('profitKnown') and record.get('decisionOrPass') is True and record.get('stage')!='STOP')
     l,w,h=parse_dims(s.get('包装尺寸cm'))
     record.update({
       'system':base.clean_text(s.get('一级系统')),'family':base.clean_text(s.get('产品族')),
