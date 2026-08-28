@@ -11,7 +11,8 @@ const fmtRub=(v,ok=true)=>ok?`${Math.round(num(v)).toLocaleString()} RUB`:'待�
 const fmtPct=(v,ok=true)=>ok?`${num(v).toFixed(1)}%`:'待补';
 const fmtKg=(v,ok=true)=>ok?`${num(v).toFixed(3)} kg`:'待补';
 const safeText=v=>(v===null||v===undefined||v===''||v==='待补/未闭环')?'待补':String(v);
-const decisionOrPass=d=>known(d,'profitKnown')&&(num(d.profit)>10||num(d.margin)>15);\nconst rankEligible=d=>decisionOrPass(d)&&d.profitRankEligible!==false&&d.stage!=='STOP'&&d.pwaTier!=='STOP_AUDIT'&&d.pwaTier!=='CANDIDATE_PENDING';
+const decisionOrPass=d=>known(d,'profitKnown')&&(num(d.profit)>10||num(d.margin)>15);
+const rankEligible=d=>decisionOrPass(d)&&d.profitRankEligible!==false&&d.stage!=='STOP'&&d.pwaTier!=='STOP_AUDIT'&&d.pwaTier!=='CANDIDATE_PENDING';
 const profitScore=d=>rankEligible(d)?num(d.profit):-1e15;
 const marginScore=d=>rankEligible(d)?num(d.margin):-1e15;
 function normalizeRow(d){const x={...d};['rank','price','cost','weight','cel','profit','margin','targetCost','ozonUnits','wbOrders','wbSearch','packageL','packageW','packageH','chargeWeight'].forEach(k=>x[k]=num(x[k]));x.links=x.links||{};x.ozForecast=Array.isArray(x.ozForecast)?x.ozForecast:[0,0];x.wbForecast=Array.isArray(x.wbForecast)?x.wbForecast:[0,0];x.totalForecast=Array.isArray(x.totalForecast)?x.totalForecast:[0,0];x.linkStatus=x.linkStatus||{};return x;}
