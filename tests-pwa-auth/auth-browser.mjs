@@ -24,17 +24,19 @@ if(optionCount<1) throw new Error(`Expected at least one product card after logi
 const firstTitle=await page.locator('#detail h2').innerText();
 if(!firstTitle) throw new Error('Product card title missing');
 
-// Validate the full-library ordering contract independently of legacy CI fixture fields:
-// calculable SKUs sort by unit profit descending; negative profit stays above pending;
-// pending profit must be last and must not be coerced to 0.
+// Validate the current cross-border OR gate independently of fixture fields:
+// only closed SKUs with profit > ¥10 OR margin > 15% enter formal ranking.
+// Non-passing and unknown-profit SKUs remain visible as candidate cards.
 const syntheticOrder=await page.evaluate(()=>{
   const originalData=data;
   const originalSorted=sorted;
   data=[
     normalizeRow({rank:9901,sku:'CI待补',profitKnown:false,priority:'C'}),
-    normalizeRow({rank:9902,sku:'CI高利润',profitKnown:true,profit:25,margin:30,priority:'A+'}),
-    normalizeRow({rank:9903,sku:'CI低利润',profitKnown:true,profit:5,margin:10,priority:'B'}),
-    normalizeRow({rank:9904,sku:'CI负利润',profitKnown:true,profit:-2,margin:-5,priority:'C'})
+    normalizeRow({rank:9902,sku:'CI双过',profitKnown:true,profit:25,margin:30,priority:'A+'}),
+    normalizeRow({rank:9903,sku:'CI利润过',profitKnown:true,profit:12,margin:10,priority:'A'}),
+    normalizeRow({rank:9904,sku:'CI利润率过',profitKnown:true,profit:5,margin:20,priority:'B'}),
+    normalizeRow({rank:9905,sku:'CI双未过',profitKnown:true,profit:5,margin:10,priority:'C'}),
+    normalizeRow({rank:9906,sku:'CI负利润',profitKnown:true,profit:-2,margin:-5,priority:'C'})
   ];
   sorted=[...data];
   sortBy('profit');
@@ -44,8 +46,14 @@ const syntheticOrder=await page.evaluate(()=>{
   sortBy('margin');
   return order;
 });
-if(syntheticOrder.length!==4 || !syntheticOrder[0].includes('CI高利润') || !syntheticOrder[1].includes('CI低利润') || !syntheticOrder[2].includes('CI负利润') || !syntheticOrder[3].includes('CI待补')) {
-  throw new Error(`Profit/pending ordering contract failed: ${JSON.stringify(syntheticOrder)}`);
+if(
+  syntheticOrder.length!==6 ||
+  !syntheticOrder[0].includes('CI双过') ||
+  !syntheticOrder[1].includes('CI利润过') ||
+  !syntheticOrder[2].includes('CI利润率过') ||
+  syntheticOrder.slice(3).some(x=>!x.includes('候选待补'))
+) {
+  throw new Error(`Cross-border OR ordering contract failed: ${JSON.stringify(syntheticOrder)}`);
 }
 
 await page.getByRole('button',{name:'按单件利润'}).click();
