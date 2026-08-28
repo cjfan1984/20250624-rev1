@@ -1,8 +1,8 @@
 {
   "records": 310,
-  "envelopeSha256": "02f1791a7d6825782b6d662d173545830ac46f375330423d0d3cade196b80442",
+  "envelopeSha256": "3c455362f75256822a7a337b4412b1ca85e6b6b288c5cd4a882824baf3666820",
   "payloadSchema": "SKU-PRODUCT-CARD-V3",
   "fragmentCount": 9,
   "schema": "SKU-PWA-EXTERNAL-DATA-V4",
-  "version": "02f1791a7d682578"
+  "version": "3c455362f7525682"
 }
