@@ -50,6 +50,7 @@ jobs:
             > /tmp/full-envelope.json
           cp sku-pwa-auth-src/hybrid-keyring.json /tmp/hybrid-keyring.json
           cp sku-pwa-auth-src/manifest.webmanifest sku-pwa-auth/manifest.webmanifest
+          cp sku-pwa-auth-src/pwa-data-version.json sku-pwa-auth/pwa-data-version.json
           cp sku-pwa-auth-src/sw.js sku-pwa-auth/sw.js
           base64 -d sku-pwa-src/icon-180.b64 > sku-pwa-auth/icons/icon-180.png
           base64 -d sku-pwa-src/icon-192.b64 > sku-pwa-auth/icons/icon-192.png
@@ -62,6 +63,13 @@ jobs:
           s=p.read_text()
           env=json.loads(Path('/tmp/full-envelope.json').read_text())
           keyring=json.loads(Path('/tmp/hybrid-keyring.json').read_text())
+          manifest=json.loads(Path('sku-pwa-auth/pwa-data-version.json').read_text())
+          allowed_manifest={'records','datasetSha256','version','delta','stats'}
+          if set(manifest)!=allowed_manifest: raise SystemExit('public data manifest contains unsupported fields')
+          if manifest.get('records')!=env.get('records'): raise SystemExit('public data manifest record mismatch')
+          dataset_sha=manifest.get('datasetSha256','')
+          if len(dataset_sha)!=64 or manifest.get('version')!=dataset_sha[:16]: raise SystemExit('public data manifest hash/version mismatch')
+          if not isinstance(manifest.get('delta'),dict) or not isinstance(manifest.get('stats'),dict): raise SystemExit('public data manifest summary missing')
           if keyring.get('kind')!='SKU-PWA-HYBRID-KEYRING': raise SystemExit('invalid hybrid keyring')
           public=keyring.get('publicKey',{})
           wrapped_private=keyring.get('wrappedPrivateKey',{})
