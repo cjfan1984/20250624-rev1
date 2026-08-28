@@ -1,0 +1,17 @@
+{
+  "records": 310,
+  "datasetSha256": "623a8f0a20538ed3ecf277ff07aced9caaf38007e89006179c532f99d2d4c48a",
+  "version": "623a8f0a20538ed3",
+  "delta": {
+    "added": 0,
+    "changed": 310,
+    "removed": 0
+  },
+  "stats": {
+    "stop": 72,
+    "profitKnown": 67,
+    "orPass": 26,
+    "formalProfitRankEligible": 0,
+    "pending": 211
+  }
+}
