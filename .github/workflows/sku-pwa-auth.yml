@@ -10,7 +10,8 @@ on:
       - 'sku-pwa-auth-src/envelope.json'
       - 'sku-pwa-auth-src/manifest.webmanifest'
       - 'sku-pwa-auth-src/sw.js'
-      - 'tests-pwa-auth/**'
+      - 'tests-pwa-auth/auth-browser.mjs'
+      - 'tests-pwa-auth/auth-public-browser.mjs'
       - '.github/workflows/sku-pwa-auth.yml'
   workflow_dispatch:
 
