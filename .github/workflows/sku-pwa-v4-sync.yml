@@ -102,3 +102,5 @@ jobs:
             v4-sync.json
             v4-fragments.json
           retention-days: 7
+
+# sync-trigger: 2026-08-28-r13
