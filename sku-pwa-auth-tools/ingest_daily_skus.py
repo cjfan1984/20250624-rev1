@@ -55,7 +55,7 @@ def candidate_to_master_row(c:dict)->list:
       None,text(c.get('产品/型号/规格')),text(c.get('货源平台/供应商')),supplier,None,None,n(c.get('MOQ')),n(c.get('毛重kg')),n(c.get('包装长cm')),n(c.get('包装宽cm')),n(c.get('包装高cm')),n(c.get('计费重kg')),None,n(c.get('前台当前价RUB')),None,None,None,text(c.get('利润状态')) or '候选/待补',confidence,text(c.get('最近研究日期')) or text(c.get('最近证据日期')),text(c.get('缺失字段')),text(c.get('WB证据')),text(c.get('Ozon商品卡')),f"{DAILY}!{c.get('_sheet_row')}"
     ]
 
-def apply_new(spreadsheet_id:str,plan:dict)->list[dict]:
+def apply_new(spreadsheet_id:str,plan:dict,max_new:int=5)->list[dict]:
     import gspread
     master,candidates,sh=load_google(spreadsheet_id,write=True);mws=sh.worksheet(MASTER);dws=sh.worksheet(DAILY);master_header=mws.row_values(1)
     if master_header[:len(MASTER_HEADERS)]!=MASTER_HEADERS:raise SystemExit('master header contract drifted; refusing auto-ingest')
@@ -63,7 +63,7 @@ def apply_new(spreadsheet_id:str,plan:dict)->list[dict]:
     by_name={text(c.get('产品/型号/规格')):c for c in candidates}
     existing_col=mws.col_values(3);next_row=max([i for i,v in enumerate(existing_col,start=1) if text(v)] or [1])+1
     results=[]
-    for item in plan.get('newSku',[]):
+    for item in plan.get('newSku',[])[:max_new]:
         name=item['candidate'];c=by_name.get(name)
         if not c:continue
         values=candidate_to_master_row(c)
@@ -75,7 +75,8 @@ def apply_new(spreadsheet_id:str,plan:dict)->list[dict]:
 def public_plan(plan:dict)->dict:return {k:v for k,v in plan.items() if not k.startswith('_')}
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--xlsx',type=Path);ap.add_argument('--spreadsheet-id',default='108o5gtxkUsWEZI8xfZFE89Kq83IfStQGNm6dvjIlAkk');ap.add_argument('--output',type=Path,default=Path('ingest-plan.json'));ap.add_argument('--apply',action='store_true');a=ap.parse_args()
+    ap=argparse.ArgumentParser();ap.add_argument('--xlsx',type=Path);ap.add_argument('--spreadsheet-id',default='108o5gtxkUsWEZI8xfZFE89Kq83IfStQGNm6dvjIlAkk');ap.add_argument('--output',type=Path,default=Path('ingest-plan.json'));ap.add_argument('--max-new',type=int,default=5);ap.add_argument('--apply',action='store_true');a=ap.parse_args()
+    if not 1<=a.max_new<=5:raise SystemExit('--max-new must be between 1 and 5')
     if a.xlsx:
         if a.apply:raise SystemExit('--apply requires Google API mode')
         master,candidates=load_xlsx(a.xlsx)
@@ -83,7 +84,7 @@ def main():
         master,candidates,_=load_google(a.spreadsheet_id,write=a.apply)
     plan=build_plan(master,candidates);plan['masterCount']=len(master);plan['candidateCount']=len(candidates);plan['policy']='已有主库行直接合并；未关联候选>=0.985自动判重，0.80–0.985人工复核，<0.80才允许自动建新SKU'
     if a.apply:
-        plan['applied']=apply_new(a.spreadsheet_id,plan)
+        plan['applied']=apply_new(a.spreadsheet_id,plan,a.max_new)
         plan['masterCountAfter']=len(master)+len(plan['applied'])
     a.output.write_text(json.dumps(public_plan(plan),ensure_ascii=False,indent=2),encoding='utf-8');print(json.dumps(public_plan(plan)['counts'],ensure_ascii=False))
 if __name__=='__main__':main()

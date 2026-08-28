@@ -1,12 +1,6 @@
-name: SKU PWA V4 Data Fragments
+name: LEGACY - SKU PWA V4 Data Fragments
 
 on:
-  push:
-    branches: [sku-pwa-auth-test]
-    paths:
-      - 'sku-pwa-auth-tools/make_v4_fragments.py'
-      - 'sku-pwa-auth-src/full-envelope.part*'
-      - '.github/workflows/sku-pwa-v4-data.yml'
   workflow_dispatch:
 
 permissions:

@@ -1,8 +1,17 @@
-name: SKU PWA Auth QA and Publish
+name: SKU PWA Auth QA and Publish (source changes only)
 
 on:
   push:
     branches: [sku-pwa-auth-test]
+    paths:
+      - 'sku-pwa-auth-src/index.part*'
+      - 'sku-pwa-auth-src/full-envelope.part*'
+      - 'sku-pwa-auth-src/hybrid-keyring.json'
+      - 'sku-pwa-auth-src/envelope.json'
+      - 'sku-pwa-auth-src/manifest.webmanifest'
+      - 'sku-pwa-auth-src/sw.js'
+      - 'tests-pwa-auth/**'
+      - '.github/workflows/sku-pwa-auth.yml'
   workflow_dispatch:
 
 permissions:

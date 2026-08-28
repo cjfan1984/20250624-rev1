@@ -31,7 +31,10 @@ def data_quality_audit(record:dict[str,Any])->dict[str,Any]:
         elif v:urls.append(v)
     if len(urls)!=len(set(urls)):issues.append({'severity':'medium','code':'DUPLICATE_URL','message':'存在重复货源/竞品链接'})
     updated=text(src.get('快照更新时间') or src.get('更新时间'))
-    if not updated:issues.append({'severity':'low','code':'NO_UPDATED_AT','message':'缺更新时间'})
+    if not updated:
+        issues.append({'severity':'low','code':'NO_UPDATED_AT','message':'缺更新时间'})
+    elif not re.fullmatch(r'\d{4}-\d{2}-\d{2}',updated):
+        issues.append({'severity':'high','code':'UPDATED_AT_INVALID','message':'更新时间不是 YYYY-MM-DD，疑似字段错位'})
     high=sum(i['severity']=='high' for i in issues)
     return {'issueCount':len(issues),'highRiskCount':high,'issues':issues,'status':'high' if high else ('review' if issues else 'ok')}
 

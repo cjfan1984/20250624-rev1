@@ -1,0 +1,161 @@
+name: SKU Zero-GPT Daily Pipeline
+
+on:
+  schedule:
+    # 23:30 Asia/Shanghai. GitHub cron is UTC.
+    - cron: "30 15 * * *"
+  workflow_dispatch:
+  push:
+    branches: [sku-pwa-auth-test]
+    paths:
+      - "sku-pwa-auth-tools/**"
+      - "tests-pwa-auth/test_zero_gpt_pipeline.py"
+      - ".github/workflows/sku-zero-gpt.yml"
+      - "requirements.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sku-zero-gpt-daily
+  cancel-in-progress: true
+
+env:
+  SKU_SHEET_ID: 108o5gtxkUsWEZI8xfZFE89Kq83IfStQGNm6dvjIlAkk
+  GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sku-pwa-auth-test
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic pipeline dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest cryptography
+
+      - name: Compile and test before touching data
+        run: |
+          python -m py_compile \
+            sku-pwa-auth-tools/sheet_contracts.py \
+            sku-pwa-auth-tools/select_new_skus.py \
+            sku-pwa-auth-tools/ingest_daily_skus.py \
+            sku-pwa-auth-tools/publish_dynamic_data.py \
+            sku-pwa-auth-tools/make_v4_fragments.py
+          pytest -q tests-pwa-auth/test_automation_modules.py \
+            tests-pwa-auth/test_sync_dynamic_sku.py \
+            tests-pwa-auth/test_zero_gpt_pipeline.py
+
+      - name: Require the existing Google service account
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::GOOGLE_SERVICE_ACCOUNT_JSON is missing. The pipeline will not fall back to GPT."
+            exit 1
+          fi
+
+      - name: Select at most five genuinely new candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p automation-state /tmp/sku-zero-gpt
+          python sku-pwa-auth-tools/select_new_skus.py \
+            --spreadsheet-id "$SKU_SHEET_ID" \
+            --state automation-state/source-fingerprints.json \
+            --status /tmp/sku-zero-gpt/candidate-status.json \
+            --max-new 5 \
+            --bootstrap-if-missing \
+            --apply
+
+      - name: Audit and build only when the stable dataset hash changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python sku-pwa-auth-tools/publish_dynamic_data.py \
+            --spreadsheet-id "$SKU_SHEET_ID" \
+            --keyring sku-pwa-auth-src/hybrid-keyring.json \
+            --output-dir /tmp/sku-zero-gpt/build \
+            --previous-manifest sku-pwa-auth-data/pwa-data-version.json \
+            --status-file /tmp/sku-zero-gpt/publish-status.json \
+            --skip-unchanged \
+            --fail-contract-risk
+          SHOULD_PUBLISH=$(python -c 'import json; print(str(json.load(open("/tmp/sku-zero-gpt/publish-status.json"))["shouldPublish"]).lower())')
+          echo "SHOULD_PUBLISH=$SHOULD_PUBLISH" >> "$GITHUB_ENV"
+
+      - name: Encrypt fragments after a real data change
+        if: env.SHOULD_PUBLISH == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python sku-pwa-auth-tools/make_v4_fragments.py \
+            --envelope /tmp/sku-zero-gpt/build/sku-data.enc.json \
+            --version-source /tmp/sku-zero-gpt/build/pwa-data-version.json \
+            | tee /tmp/sku-zero-gpt/fragments-status.json
+
+      - name: Verify the encrypted publication contract
+        if: env.SHOULD_PUBLISH == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 01 02 03 04 05 06 07 08 09; do
+            test -s "sku-pwa-auth-data/sku-data.part${i}"
+          done
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          encoded = ''.join(Path(f'sku-pwa-auth-data/sku-data.part{i:02d}').read_text() for i in range(1, 10))
+          envelope = json.loads(encoded)
+          manifest = json.loads(Path('sku-pwa-auth-data/pwa-data-version.json').read_text())
+          assert envelope['kind'] == 'SKU-PWA-HYBRID-ENVELOPE'
+          assert envelope['payloadSchema'] == 'SKU-DYNAMIC-AUTOMATION-V4'
+          assert manifest['payloadSchema'] == 'SKU-DYNAMIC-AUTOMATION-V4'
+          assert manifest['fragmentCount'] == 9
+          assert envelope['records'] == manifest['records'] > 0
+          assert len(manifest['datasetSha256']) == 64
+          assert hashlib.sha256(encoded.encode()).hexdigest() == manifest['envelopeSha256']
+          print('ZERO_GPT_PUBLICATION_CONTRACT=PASS', manifest['records'], manifest['version'])
+          PY
+
+      - name: Commit only state hashes and genuinely changed encrypted data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add automation-state/source-fingerprints.json
+          if [ "$SHOULD_PUBLISH" = "true" ]; then
+            git add sku-pwa-auth-data/sku-data.part{01,02,03,04,05,06,07,08,09} \
+              sku-pwa-auth-data/pwa-data-version.json
+          fi
+          if git diff --cached --quiet; then
+            echo "ZERO_GPT_REPO_CHANGED=false"
+            exit 0
+          fi
+          git commit -m "Run deterministic SKU pipeline"
+          git push origin HEAD:sku-pwa-auth-test
+          echo "ZERO_GPT_REPO_CHANGED=true"
+
+      - name: Upload private run summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sku-zero-gpt-status
+          path: |
+            /tmp/sku-zero-gpt/candidate-status.json
+            /tmp/sku-zero-gpt/publish-status.json
+            /tmp/sku-zero-gpt/build/quality-audit.private.json
+            /tmp/sku-zero-gpt/fragments-status.json
+          if-no-files-found: ignore
+          retention-days: 7

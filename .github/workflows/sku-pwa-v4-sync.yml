@@ -1,16 +1,6 @@
-name: SKU PWA V4 Google Sync
+name: LEGACY - SKU PWA V4 Google Sync
 
 on:
-  push:
-    branches: [sku-pwa-auth-test]
-    paths:
-      - 'sku-pwa-auth-tools/publish_dynamic_data.py'
-      - 'sku-pwa-auth-tools/build_dynamic_pwa_data.py'
-      - 'sku-pwa-auth-tools/automation_modules.py'
-      - 'sku-pwa-auth-tools/advanced_modules.py'
-      - 'sku-pwa-auth-tools/encrypt_pwa_public.py'
-      - 'sku-pwa-auth-tools/make_v4_fragments.py'
-      - '.github/workflows/sku-pwa-v4-sync.yml'
   workflow_dispatch:
 
 permissions:
@@ -102,5 +92,3 @@ jobs:
             v4-sync.json
             v4-fragments.json
           retention-days: 7
-
-# sync-trigger: 2026-08-28-r13
